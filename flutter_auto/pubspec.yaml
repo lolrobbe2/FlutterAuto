@@ -7,8 +7,12 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  archive: ^4.5.2
   flutter:
     sdk: flutter
+  http: ^1.6.0
+  path: ^1.9.1
+  protobuf: ^6.1.0
 
 dev_dependencies:
   flutter_test:

@@ -1,0 +1,183 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'message_assembler.dart';
+import 'protocol_frame.dart';
+import 'protocol_message.dart';
+
+class ProtocolConnection {
+  ProtocolConnection(Socket socket) : _socket = socket {
+    _subscription = _socket.listen(
+      _onData,
+      onError: _onError,
+      onDone: _onDone,
+      cancelOnError: false,
+    );
+  }
+
+  final Socket _socket;
+
+  final StreamController<ProtocolFrame> _frameController =
+      StreamController<ProtocolFrame>();
+
+  final Completer<void> _doneCompleter = Completer<void>();
+
+  late final StreamSubscription<List<int>> _subscription;
+
+  late final Stream<ProtocolMessage> _messages = const MessageAssembler().bind(
+    _frameController.stream,
+  );
+
+  Uint8List _buffer = Uint8List(0);
+  bool _isClosed = false;
+  Future<void>? _closeFuture;
+
+  Stream<ProtocolFrame> get frames => _frameController.stream;
+
+  /// Complete protocol messages assembled from frames.
+  ///
+  /// This is a single-subscription stream. Listen only once per connection.
+  Stream<ProtocolMessage> get messages => _messages;
+
+  Future<void> get done => _doneCompleter.future;
+
+  bool get isClosed => _isClosed;
+
+  static const int _baseHeaderSize = 4;
+  static const int _firstHeaderSize = 8;
+
+  void _onData(List<int> data) {
+    if (_isClosed || data.isEmpty) {
+      return;
+    }
+
+    _appendData(data);
+
+    try {
+      _processBuffer();
+    } on FormatException catch (error, stackTrace) {
+      _fail(error, stackTrace);
+    } on ArgumentError catch (error, stackTrace) {
+      _fail(error, stackTrace);
+    }
+  }
+
+  void _appendData(List<int> data) {
+    final Uint8List combined = Uint8List(_buffer.length + data.length);
+
+    combined.setRange(0, _buffer.length, _buffer);
+    combined.setRange(_buffer.length, combined.length, data);
+
+    _buffer = combined;
+  }
+
+  void _processBuffer() {
+    int offset = 0;
+
+    while (_buffer.length - offset >= _baseHeaderSize) {
+      final int flags = _buffer[offset + 1];
+      final int rawFrameType = flags & 0x03;
+
+      final int headerSize = rawFrameType == FrameType.first.index
+          ? _firstHeaderSize
+          : _baseHeaderSize;
+
+      if (_buffer.length - offset < headerSize) {
+        break;
+      }
+
+      final int payloadLength =
+          (_buffer[offset + 2] << 8) | _buffer[offset + 3];
+
+      final int frameLength = headerSize + payloadLength;
+
+      if (_buffer.length - offset < frameLength) {
+        break;
+      }
+
+      final Uint8List frameBytes = Uint8List.fromList(
+        _buffer.sublist(offset, offset + frameLength),
+      );
+
+      final ProtocolFrame frame = ProtocolFrame.decode(frameBytes);
+
+      _frameController.add(frame);
+      offset += frameLength;
+    }
+
+    if (offset > 0) {
+      _buffer = Uint8List.fromList(_buffer.sublist(offset));
+    }
+  }
+
+  Future<void> send(ProtocolFrame frame) async {
+    if (_isClosed) {
+      throw StateError('Cannot send data on a closed connection.');
+    }
+
+    _socket.add(frame.encode());
+    await _socket.flush();
+  }
+
+  void _onError(Object error, StackTrace stackTrace) {
+    _fail(error, stackTrace);
+  }
+
+  void _onDone() {
+    _finish();
+  }
+
+  void _fail(Object error, StackTrace stackTrace) {
+    if (_isClosed) {
+      return;
+    }
+
+    if (!_frameController.isClosed) {
+      _frameController.addError(error, stackTrace);
+    }
+
+    _socket.destroy();
+    _finish();
+  }
+
+  Future<void> close() {
+    final Future<void>? existingClose = _closeFuture;
+
+    if (existingClose != null) {
+      return existingClose;
+    }
+
+    _closeFuture = _closeInternal();
+    return _closeFuture!;
+  }
+
+  Future<void> _closeInternal() async {
+    if (!_isClosed) {
+      await _subscription.cancel();
+
+      try {
+        await _socket.close();
+      } finally {
+        _finish();
+      }
+    }
+  }
+
+  void _finish() {
+    if (_isClosed) {
+      return;
+    }
+
+    _isClosed = true;
+    _buffer = Uint8List(0);
+
+    if (!_frameController.isClosed) {
+      _frameController.close();
+    }
+
+    if (!_doneCompleter.isCompleted) {
+      _doneCompleter.complete();
+    }
+  }
+}
