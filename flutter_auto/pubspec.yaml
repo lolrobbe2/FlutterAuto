@@ -10,7 +10,9 @@ dependencies:
   archive: ^4.5.2
   flutter:
     sdk: flutter
+  flutter_secure_storage: ^11.2.0
   http: ^1.6.0
+  openssl_bindings: ^1.3.0
   path: ^1.9.1
   protobuf: ^6.1.0
 
