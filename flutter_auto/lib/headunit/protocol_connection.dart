@@ -117,10 +117,15 @@ class ProtocolConnection {
     if (_isClosed) {
       throw StateError('Cannot send data on a closed connection.');
     }
+
+    final Uint8List encoded = frame.encode();
+
     print(
-      'AA TX: ${frame.encode().map((int b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+      'AA TX (${encoded.length} bytes): '
+      '${encoded.map((int b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
     );
-    _socket.add(frame.encode());
+
+    _socket.add(encoded);
     await _socket.flush();
   }
 

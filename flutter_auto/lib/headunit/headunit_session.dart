@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_auto/headunit/message_router.dart';
+import 'package:flutter_auto/headunit/security/android_auto_tls_client.dart';
+import 'package:flutter_auto/headunit/security/head_unit_identity.dart';
+import 'package:flutter_auto/headunit/security/ssl_handshake_transport.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
 
 import 'protocol_connection.dart';
@@ -19,13 +22,16 @@ enum HeadunitSessionState {
 class HeadunitSession {
   HeadunitSession({
     required this.adbManager,
+    HeadUnitIdentity? identity,
     this.host = '127.0.0.1',
     this.port = 5277,
     this.majorVersion = 1,
     this.minorVersion = 1,
     this.configureAdb = true,
     this.connectionTimeout = const Duration(seconds: 10),
-  });
+  }) : identity = identity ?? HeadUnitIdentity();
+
+  final HeadUnitIdentity identity;
 
   final AdbManager adbManager;
   final String host;
@@ -40,6 +46,7 @@ class HeadunitSession {
 
   HeadunitSessionState _state = HeadunitSessionState.disconnected;
   ProtocolConnection? _connection;
+  AndroidAutoTlsClient? _tlsClient;
   MessageRouter? _router;
 
   Future<void>? _disconnectFuture;
@@ -120,15 +127,36 @@ class HeadunitSession {
           'The protocol connection closed during version negotiation.',
         );
       }
+      await identity.ensureIdentity();
+      await identity.debugCertificatePem();
+      final SslHandshakeTransport tlsTransport = SslHandshakeTransport(
+        connection: protocolConnection,
+        router: messageRouter,
+      );
+
+      final AndroidAutoTlsClient tlsClient = AndroidAutoTlsClient(
+        transport: tlsTransport,
+        identityStore: identity,
+      );
+
+      _tlsClient = tlsClient;
+      await tlsClient.connect();
+
+      if (protocolConnection.isClosed) {
+        throw StateError(
+          'The protocol connection closed during TLS negotiation.',
+        );
+      }
 
       _setState(HeadunitSessionState.connected);
       return result;
     } catch (_) {
       final ProtocolConnection? currentConnection = _connection;
       final MessageRouter? currentRouter = _router;
-
-      _connection = null;
-      _router = null;
+      final AndroidAutoTlsClient? currentTlsClient = _tlsClient;
+      if (currentTlsClient != null) {
+        await currentTlsClient.close();
+      }
 
       if (currentRouter != null) {
         await currentRouter.close();
@@ -137,6 +165,9 @@ class HeadunitSession {
       if (currentConnection != null) {
         await currentConnection.close();
       }
+      _tlsClient = null;
+      _connection = null;
+      _router = null;
 
       _setState(HeadunitSessionState.failed);
       rethrow;
@@ -164,11 +195,17 @@ class HeadunitSession {
 
     final ProtocolConnection? currentConnection = _connection;
     final MessageRouter? currentRouter = _router;
+    final AndroidAutoTlsClient? currentTlsClient = _tlsClient;
 
+    _tlsClient = null;
     _connection = null;
     _router = null;
 
     try {
+      if (currentTlsClient != null) {
+        await currentTlsClient.close();
+      }
+
       if (currentRouter != null) {
         await currentRouter.close();
       }

@@ -1,13 +1,17 @@
 import 'dart:io';
 
+import 'package:flutter_auto/headunit/headunit_session.dart';
 import 'package:flutter_auto/headunit/message_router.dart';
 import 'package:flutter_auto/headunit/protocol_connection.dart';
+import 'package:flutter_auto/headunit/security/head_unit_identity.dart';
 import 'package:flutter_auto/headunit/version_handshake.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+
 void main() {
   const bool runAdbIntegration = bool.fromEnvironment('RUN_ADB_INTEGRATION');
+  TestWidgetsFlutterBinding.ensureInitialized();
 
   test(
     'negotiates protocol version with a real Android Auto phone over ADB',
@@ -47,6 +51,39 @@ void main() {
       } finally {
         await router.close();
         await connection.close();
+      }
+    },
+    skip: runAdbIntegration
+        ? false
+        : 'Run with --dart-define=RUN_ADB_INTEGRATION=true',
+    timeout: const Timeout(Duration(seconds: 40)),
+  );
+  test(
+    'Android Auto head unit session connects over ADB',
+    () async {
+
+      final HeadunitSession session = HeadunitSession(
+        adbManager: AdbManager(),
+        host: InternetAddress.loopbackIPv4.address,
+        port: 5277,
+        configureAdb: true,
+        identity: HeadUnitIdentity(),
+        connectionTimeout: const Duration(seconds: 10),
+      );
+
+      try {
+        final result = await session.connect().timeout(
+          const Duration(seconds: 30),
+        );
+
+        expect(session.isConnected, isTrue);
+        print('Version negotiation succeeded: $result');
+
+        // If TLS is integrated into HeadunitSession.connect(),
+        // a successful result should also mean TLS completed.
+      } finally {
+        await session.disconnect();
+        await session.dispose();
       }
     },
     skip: runAdbIntegration

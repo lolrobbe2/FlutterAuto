@@ -18,6 +18,8 @@ class SslHandshakeTransport {
       return;
     }
 
+    print('[TLS transport] Sending ${tlsBytes.length} TLS bytes.');
+
     final Uint8List payload = Uint8List(2 + tlsBytes.length);
     final ByteData data = ByteData.sublistView(payload);
 
@@ -35,10 +37,18 @@ class SslHandshakeTransport {
     );
   }
 
-  Stream<Uint8List> get incomingTlsBytes {
+  
+Stream<Uint8List> get incomingTlsBytes {
     return router.forMessageId(sslHandshakeMessageId, channel: 0).map((
       ProtocolMessage message,
     ) {
+      print(
+        '[TLS transport] Received message '
+        'id=0x${sslHandshakeMessageId.toRadixString(16)}, '
+        'payload=${message.payload.length} bytes, '
+        'encryption=${message.encryptionType}.',
+      );
+
       if (message.encryptionType != EncryptionType.plain) {
         throw const FormatException(
           'TLS handshake transport must be plaintext.',
@@ -54,4 +64,5 @@ class SslHandshakeTransport {
       return Uint8List.fromList(message.payload.sublist(2));
     });
   }
+
 }

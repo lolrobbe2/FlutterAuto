@@ -23,3 +23,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/security/headunit-key.pem
+    - assets/security/headunit-cert.pem
