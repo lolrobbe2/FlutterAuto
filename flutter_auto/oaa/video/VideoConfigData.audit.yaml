@@ -1,0 +1,32 @@
+proto: oaa/video/VideoConfigData.proto
+message: VideoConfig
+confidence: silver
+last_updated: '2026-07-25'
+evidence:
+- type: apk_static
+  method: proto_access
+  source: class_mapping.yaml (v15.9:vvh, v16.1:wcz, v16.2:wcp)
+  date: '2026-03-03'
+  description: Mapped VideoConfig to obfuscated APK class(es) via proto_access analysis.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2. Field
+    numbers, types, and modifiers are consistent.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2, 16.4.
+    Field numbers, types, and modifiers are consistent across all 6 pairwise comparisons.
+  status: consistent
+- type: apk_static
+  method: raw_message_info
+  source: 17.3 xik.java field 4 and xmz.java
+  date: '2026-07-16'
+  description: >-
+    Trusted AVChannel field 4 identifies xmz as VideoConfig. Its 17.3 schema is
+    identical to the through-16.4 definition except that field 7 (viewing
+    distance) is absent. The optional field remains in the canonical proto for
+    backward wire compatibility and is reported as an explicit version delta.

@@ -1,0 +1,59 @@
+proto: oaa/carcontrol/CarPropertyData.proto
+message: CarPropertyData (all sub-messages)
+confidence: silver
+last_updated: '2026-07-25'
+evidence:
+- type: deep_trace
+  method: db_schema_verification
+  source: 16.2 proto_classes and proto_enum_classes tables
+  date: '2026-03-07'
+  description: All sub-message classes verified — CarProperty(vuh/2 fields),
+    CarAreaId(vui/6 fields), CarPropertyValue(vup/8 oneof fields),
+    CarAction(vtz/1 field), CarActionEntry(vua/1 field, sub_ref vtz),
+    IntValues(vun/packed int32), FloatValues(vum/packed float),
+    LongValues(vuo/packed int64), CarPropertyAreaConfig(vty/3 fields),
+    CarPropertyConfig(vuj/7 fields), CarPropertyControl(vuk/3 fields).
+- type: deep_trace
+  method: enum_verification
+  source: 16.2 proto_enum_classes — vul (CarPropertyId)
+  date: '2026-03-07'
+  description: CarPropertyId(vul) uses raw VHAL property IDs as values, NOT
+    sequential 1-23. All 25 non-zero values verified against DB. DOOR_LOCK(371198722)
+    and HMG_CAR_ALERTS_COUNT(34908672) new in 16.2.
+- type: deep_trace
+  method: source_trace
+  source: vup.java descriptor constructor
+  date: '2026-03-07'
+  description: CarPropertyValue oneof fields 6-8 reference vun.class(IntValues),
+    vuo.class(LongValues), vum.class(FloatValues). NOT empty placeholders.
+    CarPropertyValueMsg removed.
+- type: deep_trace
+  method: source_trace
+  source: vuj.java descriptor constructor
+  date: '2026-03-07'
+  description: CarPropertyConfig fields 4 and 7 restructured in 16.2 — field 4
+    references vui(CarAreaId), field 7 references vty(CarPropertyAreaConfig).
+    Was field 4=CarPropertyAreaConfig, field 7=CarPropertyValue in 16.1.
+- type: deep_trace
+  method: enum_verification
+  source: 16.2 proto_enum_classes — vub/vuc/vud/vue/vuf
+  date: '2026-03-07'
+  description: All 5 VehicleArea enums verified. VehicleAreaSeat(vud) has 9 values —
+    ROW_3_CENTER(512) NOT present in APK enum (removed from proto).
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions for most sub-messages.
+    CarPropertyConfig fields 4/7 restructured in 16.2.
+corrections:
+- CarPropertyId enum values — ALL changed from sequential (1-23) to raw VHAL IDs
+- CarPropertyValue oneof 6-8 — CarPropertyValueMsg → IntValues/LongValues/FloatValues
+- CarPropertyValueMsg message REMOVED (was empty placeholder)
+- CarPropertyConfig field 4 — CarPropertyAreaConfig → CarAreaId (16.2 restructure)
+- CarPropertyConfig field 7 — CarPropertyValue → CarPropertyAreaConfig (16.2 restructure)
+- VehicleAreaSeat ROW_3_CENTER (512) REMOVED — not in APK enum
+- Class name comments fixed — CarActionEntry(vuo→vua), CarPropertyAreaConfig(vum→vty)
+- All confidence upgraded silver → gold (DB-verified items)
+- 6 enums remain silver (CarAreaType, CarPropertyAccessMode, CarPropertyChangeMode,
+  CarPropertyType, SideAffinity, CarControlGroupType) — no named enum classes in DB

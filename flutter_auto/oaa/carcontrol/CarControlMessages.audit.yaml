@@ -1,0 +1,71 @@
+proto: oaa/carcontrol/CarControlMessages.proto
+message: CarControlMessages (all)
+confidence: silver
+last_updated: '2026-07-25'
+evidence:
+- type: deep_trace
+  method: handler_dispatch
+  source: hyc.java (16.2), vik.m36844q/m36843p
+  date: '2026-03-07'
+  description: Handler hyc.java (service 19) switch cases verified — 0x8002(wbr),
+    0x8004(wba), 0x8005(vwg), 0x8007(vvz) received. 0x8001(wbq), 0x8003(waz),
+    0x8006(vvv) are send-only. vik.m36844q confirms 7 msg IDs 0x8001-0x8007, no offset.
+- type: deep_trace
+  method: db_schema_verification
+  source: 16.2 proto_classes table
+  date: '2026-03-07'
+  description: All 7 top-level message classes verified in DB — wbq(3 fields),
+    wbr(4 fields), waz(1 field), wba(1 field), vwg(3 fields), vvv(1 field),
+    vvz(1 field). Sub-message refs confirmed (vuh, vup, vvy, vwh, vtz).
+- type: deep_trace
+  method: status_enum_trace
+  source: hyc.java handler, vik.m36848u, hlb.java
+  date: '2026-03-07'
+  description: Status fields in SetCarPropertyValueResponse(wbr field 2) and
+    SetCarPropertyListenerResult(vwh field 2) use shared ProtocolStatus (vyh),
+    NOT a car-control-specific 3-value enum. Confirmed via vyh.m37369b() calls.
+    Old CarControlStatus enum RETRACTED.
+- type: deep_trace
+  method: sdp_descriptor_verification
+  source: vwa.java descriptor, 16.2 DB
+  date: '2026-03-07'
+  description: CarControlChannelDescriptor(vwa) field 2 references vvx(CarControl),
+    NOT vvy(CarControlGroup). Field 1=vuj(CarPropertyConfig), field 3=vua(CarActionEntry).
+- type: deep_trace
+  method: enum_verification
+  source: 16.2 proto_enum_classes table
+  date: '2026-03-07'
+  description: CarControlMetadataType(vug) has 3 values — METADATA_PREFER_STATUS_BAR=2
+    is NEW in 16.2 (was missing from proto).
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2 for most
+    messages. CarControlChannelDescriptor field 2 type changed (CarControlGroup → CarControl).
+- type: apk_deep_trace
+  method: endpoint_send_and_dispatch_trace
+  source: >-
+    Android Auto 17.3.662804-release; APKM SHA-256
+    1db7ce995aa52b2cde47a01abfb0364220fb57fc60217de3ec714e3034795344;
+    base.apk SHA-256
+    5557827f259898bdab97b489e1a0aef937fd6ec711d87361cf25d51af6f48619;
+    JADX iip.java I(List):251-268, n(CarAction):566-591,
+    v(CarProperty,CarPropertyValue,rgu):798-935;
+    ixb.java a(int,ByteBuffer):22-178; xlz.java:7-10,29;
+    xma.java:7-11,30; xli.java:7,26; xlj.java:7,26;
+    xgj.java:7-10,29; xfw.java:7-8,27; xga.java:7-8,27
+  date: '2026-07-25'
+  description: >-
+    Direct 17.3 phone endpoint branches prove 0x8001/0x8003/0x8006
+    Phone-to-HU and 0x8002/0x8004/0x8005/0x8007 HU-to-Phone while preserving
+    the seven schemas. These directions are static; service activation and
+    framed runtime traffic remain unverified.
+corrections:
+- RegisterCarPropertyListenersRequest added (was missing from proto, waz 16.2)
+- CarControlStatus enum RETRACTED — status fields use shared ProtocolStatus (vyh)
+- CarControlMetadataType — METADATA_PREFER_STATUS_BAR=2 added
+- CarControlChannelDescriptor field 2 — CarControlGroup → CarControl
+- Handler class updated hxp.java → hyc.java
+- All 16.2 class name comments updated
+- All confidence upgraded silver → gold (handler-traced items)

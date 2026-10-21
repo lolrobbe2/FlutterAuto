@@ -1,0 +1,22 @@
+proto: oaa/input/ButtonEventsData.proto
+message: ButtonEvents
+confidence: silver
+last_updated: '2026-07-25'
+class_mapping:
+  '16.2': vxv
+  '16.1': vyj
+  '15.9': vqr
+evidence:
+- type: apk_deep_trace
+  method: deep_apk
+  source: iae.java:90-94 (iterates vxvVar.f74304b as list of vxu/ButtonEvent)
+  date: '2026-03-06'
+  description: >
+    f74304b = repeated list of vxu (ButtonEvent). Iterated directly in handler.
+- type: apk_static
+  method: enum_match
+  source: class_mapping.yaml (v15.9:vqr, v16.1:vyj)
+  date: '2026-03-03'
+  description: Mapped ButtonEvents via enum_match.
+corrections:
+- '2026-03-06: Added 16.2 class vxv. Promoted silver→gold.'

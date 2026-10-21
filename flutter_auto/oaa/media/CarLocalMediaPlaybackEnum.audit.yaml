@@ -1,0 +1,27 @@
+proto: oaa/media/CarLocalMediaPlaybackEnum.proto
+message: CarLocalMediaPlayback
+confidence: retracted
+last_updated: '2026-03-06'
+retracted: true
+retraction:
+  date: '2026-03-06'
+  reason: >-
+    Superseded by the canonical CarLocalMediaPlaybackAction enum in
+    oaa/media/CarLocalMediaPlaybackStatusMessage.proto; this tombstone had the
+    wrong syntax, package, and an unnecessary message wrapper.
+  replaced_by: oaa/media/CarLocalMediaPlaybackStatusMessage.proto
+evidence:
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:vox, v16.1:vwp, v16.2:vwb)
+  date: '2026-03-03'
+  description: Mapped CarLocalMediaPlayback to obfuscated APK class(es) via bfs_trace analysis.
+- type: apk_deep_trace
+  method: proto_verification_pipeline
+  source: analysis/reports/proto-verification/media.md
+  date: '2026-03-06'
+  description: >
+    SUPERSEDED. Redundant with CarLocalMediaPlaybackAction enum in
+    CarLocalMediaPlaybackStatusMessage.proto. This file had wrong syntax (proto3
+    should be proto2), unnecessary message wrapper, and different package.
+    Enum values confirmed correct (0-4, unobfuscated names in vwb.java 16.2).

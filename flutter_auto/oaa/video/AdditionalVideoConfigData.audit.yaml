@@ -1,0 +1,80 @@
+proto: oaa/video/AdditionalVideoConfigData.proto
+message: AdditionalVideoConfig
+confidence: silver
+last_updated: '2026-07-25'
+evidence:
+- type: apk_static
+  method: call_graph
+  source: class_mapping.yaml (v15.9:vuu, v16.1:wcm, v16.2:wcb)
+  date: '2026-03-03'
+  description: Mapped AdditionalVideoConfig to obfuscated APK class(es) via call_graph
+    analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vtq, v16.1:wbi, v16.2:way)
+  date: '2026-03-03'
+  description: >-
+    Historically named VideoInsets; 17.1/17.3 consumption shows this distinct
+    class is the position type used by margin configs and native UI elements.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vpl, v16.1:vxd, v16.2:vwp)
+  date: '2026-03-03'
+  description: Mapped VideoMarginConfig to obfuscated APK class(es) via string_const
+    analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vnt, v16.1:vvl, v16.2:vux)
+  date: '2026-03-03'
+  description: Mapped VideoResizeAction to obfuscated APK class(es) via string_const
+    analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vqj, v16.1:vyb, v16.2:vxn)
+  date: '2026-03-03'
+  description: >-
+    Historically named VideoResolutionRange; 17.1/17.3 display construction
+    proves the four scalars are top/bottom/left/right display insets.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2. Field
+    numbers, types, and modifiers are consistent.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Unmappable in 16.4 (matcher found no candidate meeting structural fingerprint
+    + field count match, or candidate was ambiguous).
+  status: unmappable_16_4
+- type: apk_static
+  method: call_graph
+  source: 17.1 irw.java:260-324 and 17.3 itl.java:43-71 / itx.java:24-88
+  date: '2026-07-16'
+  description: >-
+    Phone-side display construction consumes fields 1-3 as Rect-style insets,
+    not resolution ranges. Field 8 is a blended-UI configuration containing
+    corner radii and native-UI element positions; the full child graph remains
+    stable from 17.1 xol/xhj/xir/xkq/xnh to 17.3 xml/xfi/xgs/xir/xlh.
+- type: apk_static
+  method: ui_feature_consumer_trace
+  source: >-
+    Android Auto 17.3.662804-release; APKM SHA-256
+    1db7ce995aa52b2cde47a01abfb0364220fb57fc60217de3ec714e3034795344;
+    base.apk SHA-256
+    5557827f259898bdab97b489e1a0aef937fd6ec711d87361cf25d51af6f48619;
+    JADX iyk.java:123-148, iyk.java:232-234, dsi.java:478-491,
+    CarInfo.java:38-54, xmm.java:4-37, jaf.java:36-42, ity.java:14,
+    itv.java:6-12, itt.java:274-299, CarDisplayUiFeatures.java:40-41,
+    ovw.java:20-29, ovv.java:16-34, owa.java:6-27
+  date: '2026-07-25'
+  description: >-
+    When the HU requests GAL version 4.3+, AdditionalVideoConfig field 5 is
+    converted into CarDisplayUiFeatures.
+    UI_ELEMENT_NAVIGATION_TURN_DATA_AVAILABLE (enum value 5) maps to feature
+    flag 16, named hasClusterTurnCard. The CLUSTER display controller passes
+    the inverse as EXTRA_SHOW_TURN_CARD. For a lower HU request, field 5 is
+    ignored and session_configuration masks 1, 4, and 2 seed clock, battery,
+    and phone-signal flags; that legacy path has no flag 16. The gate uses the
+    retained requested version, not the separately selected negotiated result.

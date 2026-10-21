@@ -1,0 +1,35 @@
+proto: oaa/control/PhoneCapabilitiesMessage.proto
+message: PhoneCapabilities
+confidence: retracted
+last_updated: '2026-07-16'
+retracted: true
+retraction_reason: >-
+  The aafx -> aayu -> abup lineage is Google Surveys client context, not the
+  Android Auto ServiceDiscoveryRequest schema.
+evidence:
+- type: apk_static
+  method: call_graph
+  source: class_mapping.yaml (v15.9:zyn, v16.1:aagr, v16.2:aafx)
+  date: '2026-03-03'
+  description: Mapped PhoneCapabilities to obfuscated APK class(es) via call_graph
+    analysis.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2. Field
+    numbers, types, and modifiers are consistent.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2, 16.4.
+    Field numbers, types, and modifiers are consistent across all 6 pairwise comparisons.
+  status: consistent
+- type: apk_deep_trace
+  method: class_lineage_call_site
+  source: analysis/lineage/android-auto-17.3.yaml
+  date: '2026-07-16'
+  description: >-
+    RETRACTED. Cross-version continuity was real, but vdo.java/wmp.java construct
+    the class exclusively while serializing Google Surveys request context.

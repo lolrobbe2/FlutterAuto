@@ -1,0 +1,52 @@
+proto: oaa/control/InputModelData.proto
+message: InputModelEntry
+confidence: retracted
+last_updated: '2026-07-16'
+retracted: true
+retraction_reason: >-
+  The mapped aafl/aago families are GoogleAuth and Google Surveys data, not
+  Android Auto capability connections or handwriting input models.
+evidence:
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:nnj, v16.1:aahf, v16.2:aagl)
+  date: '2026-03-03'
+  description: Mapped CapabilityConnectionConfig to obfuscated APK class(es) via bfs_trace
+    analysis.
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:aaas, v16.1:aafs, v16.2:aaey)
+  date: '2026-03-03'
+  description: Mapped InputModelEntry to obfuscated APK class(es) via bfs_trace analysis.
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:aaca, v16.1:aahd, v16.2:aagj)
+  date: '2026-03-03'
+  description: Mapped InputModelDescriptor to obfuscated APK class(es) via bfs_trace
+    analysis.
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:zze, v16.1:aahi, v16.2:aago)
+  date: '2026-03-03'
+  description: Mapped HandwritingInputModelConfig to obfuscated APK class(es) via
+    bfs_trace analysis.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2. Field
+    numbers, types, and modifiers are consistent.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2, 16.4.
+    Field numbers, types, and modifiers are consistent across all 6 pairwise comparisons.
+  status: consistent
+- type: apk_deep_trace
+  method: class_lineage_call_site
+  source: analysis/lineage/android-auto-17.3.yaml
+  date: '2026-07-16'
+  description: >-
+    RETRACTED. aafl -> aayi -> abud is consumed by GoogleAuthProviderImpl;
+    aago -> aazl -> abvg is Google Surveys request context with survey failures.

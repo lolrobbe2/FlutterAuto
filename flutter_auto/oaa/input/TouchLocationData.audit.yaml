@@ -1,0 +1,23 @@
+proto: oaa/input/TouchLocationData.proto
+message: TouchLocation
+confidence: silver
+last_updated: '2026-07-25'
+class_mapping:
+  '16.2': wby
+  '16.1': wci
+  '15.9': vuq
+evidence:
+- type: apk_deep_trace
+  method: deep_apk
+  source: hlg.java:178-196 (m18738j reads x/y/pointer_id from wby)
+  date: '2026-03-06'
+  description: >
+    f75092c=x, f75093d=y, f75094e=pointer_id. All accessed directly without
+    null checks, confirming required modifier. DB also says required for all 3.
+- type: apk_static
+  method: enum_match
+  source: class_mapping.yaml (v15.9:vuq, v16.1:wci, v16.2:wby)
+  date: '2026-03-03'
+  description: Mapped TouchLocation via enum_match.
+corrections:
+- '2026-03-06: Changed all 3 fields from optional to required. Promoted silver→gold.'

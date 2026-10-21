@@ -1,0 +1,53 @@
+proto: oaa/control/CapabilityData.proto
+message: CapabilityEntry
+confidence: retracted
+last_updated: '2026-07-16'
+retracted: true
+retraction_reason: >-
+  The aagb -> aayy -> abut family and its parent/child graph are Google Surveys
+  client-capability telemetry, not Android Auto phone capability negotiation.
+evidence:
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:zyr, v16.1:aagv, v16.2:aagb)
+  date: '2026-03-03'
+  description: Mapped CapabilityEntry to obfuscated APK class(es) via string_const
+    analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:aabh, v16.1:aagh, v16.2:aafn)
+  date: '2026-03-03'
+  description: Mapped CapabilityFlag to obfuscated APK class(es) via string_const
+    analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:aabm, v16.1:aags, v16.2:aafy)
+  date: '2026-03-03'
+  description: Mapped CapabilityPair to obfuscated APK class(es) via string_const
+    analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:aaaq, v16.1:aaft, v16.2:aaez)
+  date: '2026-03-03'
+  description: Mapped PingConfigPair to obfuscated APK class(es) via string_const
+    analysis.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2. Field
+    numbers, types, and modifiers are consistent.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Unmappable in 16.4 (matcher found no candidate meeting structural fingerprint
+    + field count match, or candidate was ambiguous).
+  status: unmappable_16_4
+- type: apk_deep_trace
+  method: class_lineage_call_site
+  source: analysis/lineage/android-auto-17.3.yaml
+  date: '2026-07-16'
+  description: >-
+    RETRACTED. Exact 16.2/16.4/17.3 lineage plus vdo.java and wmp.java call
+    sites identify this file's mapped classes as Google Surveys request context.

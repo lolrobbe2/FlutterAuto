@@ -1,0 +1,36 @@
+proto: oaa/wifi/WifiSetupInfoMessage.proto
+message: WifiSetupInfo
+confidence: silver
+last_updated: '2026-07-25'
+evidence:
+- type: apk_static
+  method: enum_match
+  source: class_mapping.yaml (v15.9:vvq, v16.1:wdi, v16.2:wcy)
+  date: '2026-03-03'
+  description: Mapped WifiNetworkInfo to obfuscated APK class(es) via enum_match analysis.
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:vwa, v16.1:wds, v16.2:wdi)
+  date: '2026-03-03'
+  description: Mapped WifiSetupInfo to obfuscated APK class(es) via bfs_trace analysis.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2. Field
+    numbers, types, and modifiers are consistent.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2, 16.4.
+    Field numbers, types, and modifiers are consistent across all 6 pairwise comparisons.
+  status: consistent
+- type: apk_static
+  method: semantic_consumer_trace
+  source: Android Auto 17.3 ltt.java and pef.java (xns/xnq/xni)
+  date: '2026-07-16'
+  description: Consumer logging and validation name all five WifiSetupInfo fields
+    as major/minor version, setup token, WPP IP/port endpoint, and access-point
+    information. This replaces the placeholder payload and incorrect feature-flags
+    child assignments.

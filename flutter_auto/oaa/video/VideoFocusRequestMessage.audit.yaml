@@ -1,0 +1,45 @@
+proto: oaa/video/VideoFocusRequestMessage.proto
+message: VideoFocusRequest
+confidence: gold
+last_updated: '2026-07-25'
+wire_msg_id: 0x8007
+direction: Phone->HU
+channel: video (CAR.GAL.VIDEO)
+handler: ied.java (m20258P)
+class_mapping:
+  v15.9: vvl
+  v16.1: wdd
+  v16.2: wct
+evidence:
+- type: deep_trace
+  method: handler_verified
+  source: ied.java m20258P -> m20106k(32775)
+  date: '2026-03-06'
+  description: Traced send path in video handler. Field 2 = wcq (VideoFocusMode),
+    field 3 = wcs (VideoFocusReason). No field 1.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vvl, v16.1:wdd, v16.2:wct)
+  date: '2026-03-03'
+  description: String-constant / class-mapping evidence binding VideoFocusRequest
+    to obfuscated classes vvl (15.9), wdd (16.1), wct (16.2) across the APK versions
+    in class_mapping.yaml.
+- type: cross_version
+  method: structural_comparison
+  source: docs/cross-version/video.md (15.9:vvl, 16.1:wdd, 16.2:wct, 16.4:wvf)
+  date: '2026-03-03'
+  description: Structural comparison across versions 15.9, 16.1, and 16.2 confirmed
+    field numbers, types, and modifiers are consistent. No schema drift detected.
+- type: apk_deep_trace
+  method: builder_and_send_trace
+  source: >-
+    Android Auto 17.3.662804-release; APKM SHA-256
+    1db7ce995aa52b2cde47a01abfb0364220fb57fc60217de3ec714e3034795344;
+    base.apk SHA-256
+    5557827f259898bdab97b489e1a0aef937fd6ec711d87361cf25d51af6f48619;
+    JADX jdc.java:97-118, xnd.java:7-9,28
+  date: '2026-07-25'
+  description: >-
+    The phone builds xnd with focus mode at field 2 and focus reason at field 3
+    and sends raw ID 0x8007, proving Phone-to-HU direction. The source trace is
+    static; current 17.3 runtime focus traffic was not captured.

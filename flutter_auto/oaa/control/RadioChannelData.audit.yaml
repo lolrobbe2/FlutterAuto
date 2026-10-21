@@ -1,0 +1,40 @@
+proto: oaa/control/RadioChannelData.proto
+message: RadioChannel
+confidence: silver
+last_updated: '2026-07-25'
+evidence:
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vtm, v16.1:wbe, v16.2:aasf)
+  date: '2026-03-03'
+  description: Mapped RadioBand to obfuscated APK class(es) via string_const analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vtg, v16.1:way)
+  date: '2026-03-03'
+  description: Mapped RadioChannel to obfuscated APK class(es) via string_const analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vtf, v16.1:wax)
+  date: '2026-03-03'
+  description: Mapped RadioStation to obfuscated APK class(es) via string_const analysis.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2. Field
+    numbers, types, and modifiers are consistent.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Unmappable in 16.4 (matcher found no candidate meeting structural fingerprint
+    + field count match, or candidate was ambiguous).
+  status: unmappable_16_4
+- type: apk_static
+  method: semantic_service_discovery_trace
+  source: Android Auto 17.3 xlv.i -> xkx/xkj/xki; iji/iya consumers
+  date: '2026-07-16'
+  description: Confirmed RadioChannelConfig has only field 2 in 17.3, containing
+    the repeated radio-band groups. Band groups retain fields 1-3 and add a
+    fourth boolean whose semantics are not exposed by current consumers.

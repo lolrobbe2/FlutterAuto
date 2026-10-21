@@ -1,0 +1,30 @@
+proto: oaa/video/UiConfigRequestMessage.proto
+message: UiConfigRequest
+confidence: bronze
+last_updated: '2026-07-25'
+wire_msg_id: 0x8011
+direction: HU->Phone
+channel: video (CAR.GAL.VIDEO)
+handler: hum.mo19778c(UiStyle) -> huz.mo19796n(wcj) -> ied.m20106k(32785)
+class_mapping:
+  wrapper:
+    v15.9: vvb
+    v16.1: wct
+    v16.2: wcj
+  data:
+    v15.9: vuw
+    v16.1: wco
+    v16.2: wce
+  entry:
+    v15.9: vuy
+    v16.1: wcq
+    v16.2: wcg
+  value:
+    v16.2: wcf
+evidence:
+- type: deep_trace
+  method: handler_verified
+  source: hum -> huz -> ied send chain, response at 0x8012 (UpdateHuUiConfigResponse)
+  date: '2026-03-06'
+  description: Full call graph traced. UiConfigValue was empty, now has uint32 field 1.
+    WARNING - 16.1 class names (wct, wco, wcq) ALL refer to different protos in 16.2.

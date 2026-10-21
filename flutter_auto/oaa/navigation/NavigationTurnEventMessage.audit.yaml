@@ -1,0 +1,65 @@
+proto: oaa/navigation/NavigationTurnEventMessage.proto
+message: NavigationTurnEvent
+confidence: silver
+last_updated: '2026-07-16'
+evidence:
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:vro, v16.1:vzg, v16.2:vys)
+  date: '2026-03-03'
+  description: Mapped NavigationTurnDistance to obfuscated APK class(es) via bfs_trace
+    analysis.
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:vrn, v16.1:vzf, v16.2:vyr)
+  date: '2026-03-03'
+  description: Mapped DestinationDistance to obfuscated APK class(es) via bfs_trace
+    analysis.
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:vrl, v16.1:vzd, v16.2:vyp)
+  date: '2026-03-03'
+  description: Mapped NavigationNextTurnDistanceEvent to obfuscated APK class(es)
+    via bfs_trace analysis.
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:vsd, v16.1:vzv, v16.2:vzh)
+  date: '2026-03-03'
+  description: Mapped NavigationRemainingDistance to obfuscated APK class(es) via
+    bfs_trace analysis.
+- type: apk_static
+  method: bfs_trace
+  source: class_mapping.yaml (v15.9:xeu, v16.1:xmv, v16.2:xmf)
+  date: '2026-03-03'
+  description: Mapped NavigationStepDistance to obfuscated APK class(es) via bfs_trace
+    analysis.
+- type: apk_static
+  method: string_const
+  source: class_mapping.yaml (v15.9:vru, v16.1:vzm, v16.2:vyy)
+  date: '2026-03-03'
+  description: Mapped NavigationTurnEvent to obfuscated APK class(es) via string_const
+    analysis. In 16.2 the matched class (`vyy`) is deprecated, and fallback JADX over
+    classes.dex recovered hlj.mo18767n(...) building `vyy` and sending it on native
+    `0x8004` / `32772`.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural class-shape match exists across versions 15.9, 16.1, and
+    the deprecated 16.2 class match; post-plan fallback decompilation also confirms
+    an active 16.2 native `0x8004` / `32772` sender path.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2, 16.4.
+    Field numbers, types, and modifiers are consistent across all 6 pairwise comparisons.
+  status: consistent
+- type: apk_static
+  method: semantic_sender_trace
+  source: Android Auto 17.3 ija.h(NavigationCurrentPosition) -> xiw (0x8007)
+  date: '2026-07-16'
+  description: Direct sender trace identifies xiw field 1 as StepDistance (xjo),
+    field 2 as repeated DestinationDistance (xiy), and field 3 as current-road
+    NavigationText (xjf). The source API toString methods also name ETA and
+    time-to-arrival/time-to-step fields.

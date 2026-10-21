@@ -1,0 +1,24 @@
+proto: oaa/av/AVChannelSetupResponseMessage.proto
+message: AVChannelSetupResponse
+confidence: silver
+last_updated: '2026-07-25'
+evidence:
+- type: apk_static
+  method: proto_access
+  source: class_mapping.yaml (v15.9:vpj, v16.1:vxb, v16.2:vwn)
+  date: '2026-03-03'
+  description: Mapped AVChannelSetupResponse to obfuscated APK class(es) via proto_access
+    analysis.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2)
+  date: '2026-03-03'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2. Field
+    numbers, types, and modifiers are consistent.
+- type: cross_version
+  method: structural_comparison
+  source: cross-version checker (15.9, 16.1, 16.2, 16.4)
+  date: '2026-04-08'
+  description: Structural match confirmed across versions 15.9, 16.1, 16.2, 16.4.
+    Field numbers, types, and modifiers are consistent across all 6 pairwise comparisons.
+  status: consistent

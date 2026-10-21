@@ -1,0 +1,24 @@
+proto: oaa/input/RelativeInputEventData.proto
+message: RelativeInputEvent
+confidence: silver
+last_updated: '2026-07-25'
+class_mapping:
+  '16.2': wbb
+  '16.1': wbl
+  '15.9': vtt
+evidence:
+- type: apk_deep_trace
+  method: deep_apk
+  source: iae.java:185-201 (rotary event processing)
+  date: '2026-03-06'
+  description: >
+    f74886c=scan_code (line 187,192), f74887d=delta (line 188,193).
+    Both accessed directly without null checks, confirming required modifier.
+    Only scan_code=65536 (ROTARY_CONTROLLER) is recognized.
+- type: apk_static
+  method: enum_match
+  source: class_mapping.yaml (v15.9:vtt, v16.1:wbl, v16.2:wbb)
+  date: '2026-03-03'
+  description: Mapped RelativeInputEvent via enum_match.
+corrections:
+- '2026-03-06: Changed both fields from optional to required. Promoted silver→gold.'
