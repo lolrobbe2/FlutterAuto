@@ -1,128 +1,203 @@
-# FlutterAuto --- Current Architecture
+# FlutterAuto — Current Architecture
 
-> Status: architecture snapshot based on the implementation and test
-> code currently available. This documents the known components and
-> their responsibilities; it does **not** claim that Android Auto
-> service discovery or projection is complete.
+> **Status:** Architecture snapshot based on the current implementation and integration tests. This documents the known components and their responsibilities. It does **not** claim that Android Auto service discovery, channel establishment, or projection is complete.
 
 ## Scope
 
-FlutterAuto is a Flutter/Dart Android Auto head-unit client. It connects
-to an Android phone through an ADB-forwarded TCP socket, establishes
-TLS, negotiates the protocol version, and is being extended toward a
-complete head-unit session.
+FlutterAuto is a Flutter/Dart Android Auto head-unit client. It connects to an Android phone through an ADB-forwarded TCP socket, initializes protocol messaging, negotiates the Android Auto protocol version, and then performs the TLS handshake. Development work is continuing toward a complete head-unit session.
 
 ## Component overview
 
-``` mermaid
+```mermaid
 flowchart TB
     UI["Flutter UI<br/>MainApp / device selection"]
-    ADB["AdbManager<br/>ADB setup, device commands,<br/>port forwarding"]
-    SESSION["HeadunitSession<br/>session lifecycle / orchestration"]
-    IDENTITY["HeadUnitIdentity<br/>head-unit certificate and key assets"]
-    TLS["AndroidAutoTlsClient<br/>TLS client / handshake"]
-    TRANSPORT["SslHandshakeTransport<br/>bridges TLS bytes to transport"]
-    SOCKET["TCP Socket<br/>127.0.0.1:5277"]
-    CONN["ProtocolConnection<br/>protocol framing and I/O"]
-    ROUTER["MessageRouter<br/>routes protocol messages"]
-    VERSION["VersionHandshake<br/>version negotiation"]
+    SESSION["HeadunitSession<br/>Session lifecycle and orchestration"]
+    ADB["AdbManager<br/>ADB setup and port forwarding"]
+    IDENTITY["HeadUnitIdentity<br/>Certificate and private key"]
+    SOCKET["Dart Socket<br/>127.0.0.1:5277"]
+    PC["ProtocolConnection<br/>Protocol framing and I/O"]
+    ROUTER["MessageRouter<br/>Incoming message routing"]
+    VH["VersionHandshake<br/>Protocol version negotiation"]
+    TLS["AndroidAutoTlsClient<br/>TLS client and handshake"]
+    TRANSPORT["SslHandshakeTransport<br/>TLS handshake byte transport"]
     PHONE["Android Auto phone"]
 
-    UI --> ADB
+    UI --> SESSION
     SESSION --> ADB
     SESSION --> IDENTITY
+    SESSION --> SOCKET
+    SOCKET --> PC
+    PC <--> ROUTER
+    SESSION --> VH
+    VH <--> ROUTER
     SESSION --> TLS
     TLS --> TRANSPORT
-    TRANSPORT <--> SOCKET
-    SOCKET <--> PHONE
-    SESSION --> CONN
-    CONN <--> ROUTER
-    SESSION --> VERSION
-    VERSION <--> ROUTER
+    TRANSPORT <--> PC
+    PC <--> PHONE
+
+    NEXT["Next milestones:<br/>Service discovery and channel setup"]
+    SESSION -. future work .-> NEXT
 ```
+
+The diagram shows conceptual class relationships. The exact behavior of the TLS transport depends on the implementations of `AndroidAutoTlsClient` and `SslHandshakeTransport`.
 
 ## Known responsibilities
 
-  -----------------------------------------------------------------------
-  Component                           Responsibility
-  ----------------------------------- -----------------------------------
-  `AdbManager`                        Initializes the ADB-based link and
-                                      configures port forwarding used by
-                                      the app.
+| Component | Responsibility |
+| --- | --- |
+| `MainApp` / Flutter UI | Provides the application interface and device-selection workflow. |
+| `AdbManager` | Initializes the ADB-based link and configures the port forwarding used by the app. |
+| `HeadunitSession` | Orchestrates connection setup, version negotiation, TLS setup, session state transitions, and resource cleanup. |
+| `HeadUnitIdentity` | Ensures the head-unit certificate and private key are available for TLS setup. |
+| `ProtocolConnection` | Sends and receives protocol data over the TCP socket and provides protocol framing and I/O. |
+| `MessageRouter` | Routes incoming protocol messages to the appropriate handler. |
+| `VersionHandshake` | Exchanges version-negotiation messages through the message router and returns a `VersionHandshakeResult`. |
+| `AndroidAutoTlsClient` | Coordinates the TLS client connection and handshake. |
+| `SslHandshakeTransport` | Bridges TLS handshake data to and from the existing protocol connection. |
 
-  `HeadunitSession`                   Coordinates session connection and
-                                      cleanup; current integration test
-                                      calls `connect()`, `disconnect()`,
-                                      and `dispose()`.
+## Connection and handshake sequence
 
-  `HeadUnitIdentity`                  Loads the head-unit certificate and
-                                      private key from Flutter assets.
+The order below follows the supplied `HeadunitSession.connect()` implementation.
 
-  `AndroidAutoTlsClient`              Handles the TLS client-side
-                                      connection/handshake path.
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Test as Integration test
+    participant S as HeadunitSession
+    participant A as AdbManager
+    participant Phone as Android Auto phone
+    participant PC as ProtocolConnection
+    participant R as MessageRouter
+    participant V as VersionHandshake
+    participant I as HeadUnitIdentity
+    participant T as AndroidAutoTlsClient
+    participant X as SslHandshakeTransport
 
-  `SslHandshakeTransport`             Adapts TLS handshake bytes to and
-                                      from the underlying transport.
+    Test->>S: connect()
+    S->>S: State = connecting
 
-  `ProtocolConnection`                Sends and receives protocol data
-                                      over the established connection.
+    opt configureAdb = true
+        S->>A: initializeAndroidAutoLink()
+        A-->>S: ADB setup complete
+    end
 
-  `MessageRouter`                     Dispatches incoming protocol
-                                      messages to the relevant handler.
+    S->>Phone: Connect via forwarded TCP socket
+    Phone-->>S: TCP connection established
 
-  `VersionHandshake`                  Negotiates the Android Auto
-                                      protocol version; integration test
-                                      currently checks version and
-                                      status.
-  -----------------------------------------------------------------------
+    S->>PC: Create ProtocolConnection(socket)
+    S->>R: Create MessageRouter(protocolConnection)
+    S->>S: State = negotiatingVersion
 
-> The exact runtime ownership and call order between these classes
-> should be verified against the current source. The diagram shows their
-> conceptual relationships, not a guarantee that every edge is a direct
-> method call.
+    Note over S,V: 1. Version negotiation occurs before TLS
+    S->>V: run()
+    V->>R: Send version request
+    R->>PC: Send protocol message
+    PC->>Phone: Version request bytes
+    Phone-->>PC: Version response bytes
+    PC-->>R: Incoming response
+    R-->>V: Route version response
+    V-->>S: VersionHandshakeResult
 
-## Connection layers
+    S->>PC: Check connection is still open
+    S->>I: ensureIdentity()
+    I-->>S: Identity ready
+    S->>I: debugCertificatePem()
 
-``` mermaid
-flowchart LR
-    A["Flutter application"] --> B["ADB port forwarding"]
-    B --> C["TCP connection<br/>localhost:5277"]
-    C --> D["TLS handshake"]
-    D --> E["Android Auto protocol"]
-    E --> F["Version negotiation"]
-    F --> G["Head-unit session"]
-    G -. "next milestone" .-> H["Service discovery and channels"]
+    Note over S,X: 2. TLS handshake occurs after version negotiation
+    S->>T: Create AndroidAutoTlsClient
+    T->>X: Use SslHandshakeTransport
+    S->>T: connect()
+    T->>X: Exchange TLS handshake data
+    X->>PC: Read/write through protocol connection
+    PC->>Phone: TLS handshake bytes
+    Phone-->>PC: TLS handshake bytes
+    X-->>T: Handshake data
+    T-->>S: TLS connection established
+
+    S->>PC: Check connection is still open
+    S->>S: State = connected
+    S-->>Test: Return VersionHandshakeResult
+
+    Note over S,Phone: Service discovery and channel setup are not established by this sequence
 ```
+
+### Simplified state machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> disconnected
+
+    disconnected --> connecting: connect()
+    connecting --> negotiatingVersion: TCP connected and router initialized
+    connecting --> failed: ADB or TCP setup fails
+
+    negotiatingVersion --> tlsHandshake: Version negotiation succeeds
+    negotiatingVersion --> failed: Version negotiation fails
+
+    tlsHandshake --> connected: TLS succeeds and connection remains open
+    tlsHandshake --> failed: TLS or connection check fails
+
+    connected --> disconnected: TCP connection closes
+    connected --> disconnecting: disconnect()
+    connecting --> disconnecting: disconnect()
+    negotiatingVersion --> disconnecting: disconnect()
+    failed --> disconnecting: disconnect()
+
+    disconnecting --> disconnected: Resources closed
+
+    connected --> serviceDiscovery: Future milestone
+    serviceDiscovery --> channelsReady: Services and channels established
+    serviceDiscovery --> failed: Protocol error or timeout
+```
+
+> `tlsHandshake`, `serviceDiscovery`, and `channelsReady` in this diagram are conceptual labels. The current `HeadunitSessionState` enum contains `disconnected`, `connecting`, `negotiatingVersion`, `connected`, `disconnecting`, and `failed`. It does not currently contain a dedicated TLS or service-discovery state.
 
 ## Current verified progress
 
-Based on the development logs and tests reported so far:
+Development logs previously reported:
 
--   TLS `SSL_do_handshake` completed successfully.
--   Protocol version negotiation succeeded for version `1.7`.
--   A real-device ADB integration test exists for the version exchange.
--   A second integration test exercises `HeadunitSession.connect()` and
-    checks `session.isConnected`.
+```text
+[TLS] SSL_do_handshake result=1, error=0
+[TLS] Handshake completed successfully.
+Version negotiation succeeded: Instance of 'VersionHandshakeResult'
+```
 
-These results do not, by themselves, prove that service discovery,
-channel establishment, media, navigation, or projection is implemented.
+This indicates that TLS completed successfully and version negotiation returned successfully in the reported run. The supplied `HeadunitSession.connect()` code confirms that version negotiation runs before TLS.
 
-## Suggested next architecture milestone
+The integration tests include:
 
-Add explicit components (or clearly defined responsibilities) for:
+- A version-negotiation test that checks `result.majorVersion > 0` and `result.status.value == 0`.
+- A head-unit session test that calls `session.connect()` and checks `session.isConnected`.
 
-1.  Control-message handling after version negotiation.
-2.  Service discovery request/response parsing.
-3.  Channel creation and lifecycle management.
-4.  Per-service payload parsing and dispatch.
-5.  Session state transitions, timeout handling, and reconnect behavior.
+These checks do not independently prove that service discovery, channel establishment, media, navigation, or projection works.
 
-Keep protocol payloads and framing aligned with the C++ reference
-implementation, and add tests for each protocol transition.
+## Suggested next architecture milestones
 
-## Security note
+1. **Control-message handling:** Handle protocol control messages after version negotiation and TLS setup as required by the reference implementation.
+2. **Service discovery:** Implement service-discovery requests, responses, and payload parsing.
+3. **Channel lifecycle:** Implement channel creation, opening, closing, and lifecycle management.
+4. **Service-specific handlers:** Add payload parsing and dispatch for individual Android Auto services.
+5. **Session robustness:** Improve timeout handling, connection-loss recovery, reconnect behavior, and state transitions.
+6. **Integration testing:** Test each protocol transition against a real device and compare framing, message types, identifiers, and payloads with the C++ reference.
 
-The certificate/private-key pair copied from the public C++ reference is
-suitable only for local interoperability experiments. Do not ship that
-identity in a production APK. Flutter assets are extractable from the
-built application.
+Keep the implementation aligned with the reference protocol and verify each milestone independently before documenting it as complete.
+
+## Failure boundaries to test
+
+| Stage | Useful failure tests |
+| --- | --- |
+| ADB setup | ADB missing, device unauthorized, forwarding command failure |
+| TCP connection | Port not forwarded, connection refused, connection timeout |
+| Version negotiation | Unexpected message, nonzero status, unsupported version, timeout |
+| Identity preparation | Missing certificate, missing private key, invalid identity |
+| TLS handshake | Peer closes connection, malformed TLS data, handshake timeout |
+| Session cleanup | Disconnect during setup, repeated disconnect, disposal after failure |
+| Future service discovery | Unknown service, malformed payload, channel-open rejection, phone disconnect |
+
+## Operational notes
+
+- Keep protocol packet and byte dumps at `fine` log level.
+- Include the current stage, error details, and stack trace in failure logs.
+- Close the TLS client, message router, protocol connection, and underlying socket according to their ownership rules.
+- Ensure the state exposed by `isConnected` accurately reflects the intended meaning of a connected session.
+- Treat the certificate/private-key pair copied from the public C++ reference as development-only. Do not bundle that identity in a production APK: Flutter assets can be extracted from the built application.

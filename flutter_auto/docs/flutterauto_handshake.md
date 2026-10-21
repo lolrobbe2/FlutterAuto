@@ -7,65 +7,90 @@
 ## Sequence diagram
 
 ``` mermaid
+
 sequenceDiagram
     autonumber
     participant Test as Integration test
     participant Session as HeadunitSession
     participant ADB as AdbManager
     participant Phone as Android Auto phone
-    participant TCP as TCP socket :5277
-    participant TLS as TLS client / transport
+    participant Socket as TCP socket
     participant PC as ProtocolConnection
     participant Router as MessageRouter
     participant VH as VersionHandshake
     participant Identity as HeadUnitIdentity
+    participant TLS as AndroidAutoTlsClient
 
     Test->>Session: connect()
-    Session->>ADB: initialize/configure ADB link
-    ADB->>Phone: ADB device commands / forwarding
-    Session->>Identity: load certificate and private key
-    Session->>TCP: connect to 127.0.0.1:5277
-    TCP-->>Phone: forwarded TCP stream
+    Session->>Session: State = connecting
 
-    Session->>TLS: start TLS handshake
+    opt configureAdb = true
+        Session->>ADB: initializeAndroidAutoLink()
+        ADB-->>Session: ADB setup complete
+    end
+
+    Session->>Socket: Socket.connect(127.0.0.1:5277)
+    Socket-->>Session: TCP socket connected
+
+    Session->>PC: ProtocolConnection(socket)
+    Session->>Router: MessageRouter(protocolConnection)
+    Session->>Session: State = negotiatingVersion
+
+    Note over VH,Router: 1. Version negotiation — before TLS
+    Session->>VH: run()
+    VH->>Router: Send version request
+    Router->>PC: Send protocol message
+    PC->>Phone: Protocol bytes over TCP
+    Phone-->>PC: Version response bytes
+    PC-->>Router: Incoming response
+    Router-->>VH: Route version response
+    VH-->>Session: VersionHandshakeResult
+
+    Session->>PC: Check connection is still open
+    Session->>Identity: ensureIdentity()
+    Identity-->>Session: Identity ready
+    Session->>Identity: debugCertificatePem()
+
+    Note over TLS,Phone: 2. TLS handshake — after version negotiation
+    Session->>TLS: Create TLS client and transport
+    Session->>TLS: connect()
     TLS->>Phone: TLS handshake records
     Phone-->>TLS: TLS handshake records
-    TLS-->>Session: handshake completed
-    Note over TLS,Phone: TLS handshake has succeeded in development logs
+    TLS-->>Session: TLS handshake completed
 
-    Session->>PC: initialize protocol connection
-    Session->>Router: set up message routing
-    Session->>VH: run version negotiation
-    VH->>Router: send version negotiation message
-    Router->>PC: send protocol message
-    PC->>Phone: framed protocol bytes
-    Phone-->>PC: response bytes
-    PC-->>Router: decoded/routed message
-    Router-->>VH: version response
-    VH-->>Session: VersionHandshakeResult
-    Session-->>Test: connect result / connected state
-
-    Note over Session,Phone: Service discovery and service-channel setup must be verified separately
+    Session->>PC: Check connection is still open
+    Session->>Session: State = connected
+    Session-->>Test: Return VersionHandshakeResult
 ```
 
 ## Simplified state machine
 
 ``` mermaid
+
 stateDiagram-v2
-    [*] --> ADBSetup
-    ADBSetup --> TCPConnecting: ADB forwarding ready
-    TCPConnecting --> TLSHandshake: TCP connected
-    TLSHandshake --> VersionNegotiation: TLS succeeds
-    TLSHandshake --> Failed: TLS error or timeout
-    VersionNegotiation --> SessionReady: valid version response
-    VersionNegotiation --> Failed: invalid response or timeout
-    SessionReady --> ServiceDiscovery: next implementation milestone
-    ServiceDiscovery --> ChannelsReady: services/channels established
-    ServiceDiscovery --> Failed: protocol error or timeout
-    ChannelsReady --> Disconnecting: disconnect requested
-    SessionReady --> Disconnecting: disconnect requested
-    Failed --> Disconnecting: cleanup
-    Disconnecting --> [*]
+    [*] --> Disconnected
+    Disconnected --> Connecting: connect()
+
+    Connecting --> NegotiatingVersion: TCP connected and router initialized
+    Connecting --> Failed: ADB or TCP setup fails
+
+    NegotiatingVersion --> TLSHandshake: Version negotiation succeeds
+    NegotiatingVersion --> Failed: Version negotiation fails
+
+    TLSHandshake --> Connected: TLS succeeds and connection remains open
+    TLSHandshake --> Failed: TLS or connection check fails
+
+    Connected --> Disconnecting: disconnect()
+    Connecting --> Disconnecting: disconnect()
+    NegotiatingVersion --> Disconnecting: disconnect()
+    Failed --> Disconnecting: disconnect()
+
+    Disconnecting --> Disconnected: Resources closed
+    Connected --> Disconnected: TCP connection closes
+
+    Connected --> ServiceDiscovery: Future milestone
+    ServiceDiscovery --> ChannelsReady: Services and channels established
+
 ```
 
 `ServiceDiscovery` and `ChannelsReady` are target milestones in this
