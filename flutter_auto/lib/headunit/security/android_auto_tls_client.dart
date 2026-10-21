@@ -3,6 +3,7 @@ import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
+import 'package:logging/logging.dart';
 import 'package:openssl_bindings/openssl.dart' as openssl;
 
 import 'head_unit_identity.dart';
@@ -13,6 +14,7 @@ import 'ssl_handshake_transport.dart';
 ///
 /// The SSL object owns its read and write BIOs after SSL_set_bio succeeds.
 class AndroidAutoTlsClient {
+  static final Logger _log = Logger('AndroidAutoTlsClient');
   AndroidAutoTlsClient({
     required this.transport,
     required this.identityStore,
@@ -56,7 +58,7 @@ class AndroidAutoTlsClient {
               return;
             }
 
-            print('[TLS] Received ${bytes.length} TLS bytes.');
+            _log.fine('[TLS] Received ${bytes.length} TLS bytes.');
             _writeToBio(_readBio, bytes);
             await _driveHandshake();
           });
@@ -67,8 +69,8 @@ class AndroidAutoTlsClient {
           }
         },
         onDone: () {
-          print('[TLS] Phone closed the incoming TLS stream.');
-          print('[TLS] Connected=$_connected');
+          _log.warning('[TLS] Phone closed the incoming TLS stream.');
+          _log.info('[TLS] Connected=$_connected');
 
           if (!_connected && !_handshakeCompleter.isCompleted) {
             _handshakeCompleter.completeError(
@@ -299,14 +301,13 @@ class AndroidAutoTlsClient {
       // Get the error immediately after SSL_do_handshake.
       final int error = result == 1 ? 0 : _getSslError(_ssl, result);
 
-      print('[TLS] SSL_do_handshake result=$result, error=$error');
+      _log.fine('[TLS] SSL_do_handshake result=$result, error=$error');
 
       await _flushOutgoing();
 
       if (result == 1) {
         _connected = true;
-        print('[TLS] Handshake completed successfully.');
-
+        _log.info('[TLS] Handshake completed successfully.');
         if (!_handshakeCompleter.isCompleted) {
           _handshakeCompleter.complete();
         }
@@ -365,6 +366,8 @@ class AndroidAutoTlsClient {
       Object error,
       StackTrace stackTrace,
     ) {
+      _log.severe('[TLS] TLS operation failed.', error, stackTrace);
+
       if (!_handshakeCompleter.isCompleted) {
         _handshakeCompleter.completeError(error, stackTrace);
       }

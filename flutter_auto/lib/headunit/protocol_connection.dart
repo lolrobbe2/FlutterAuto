@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -51,9 +52,9 @@ class ProtocolConnection {
     if (_isClosed || data.isEmpty) {
       return;
     }
-    print(
-      'AA RX: ${data.map((int b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
-    );
+
+    developer.log('AA RX: ${_formatHex(data)}', name: 'ProtocolConnection');
+
     _appendData(data);
 
     try {
@@ -64,6 +65,9 @@ class ProtocolConnection {
       _fail(error, stackTrace);
     }
   }
+
+  String _formatHex(List<int> bytes) =>
+      bytes.map((int b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
 
   void _appendData(List<int> data) {
     final Uint8List combined = Uint8List(_buffer.length + data.length);
@@ -120,9 +124,9 @@ class ProtocolConnection {
 
     final Uint8List encoded = frame.encode();
 
-    print(
-      'AA TX (${encoded.length} bytes): '
-      '${encoded.map((int b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+    developer.log(
+      'AA TX (${encoded.length} bytes): ${_formatHex(encoded)}',
+      name: 'ProtocolConnection',
     );
 
     _socket.add(encoded);
@@ -134,7 +138,7 @@ class ProtocolConnection {
   }
 
   void _onDone() {
-    print('AA TCP: remote socket closed');
+    developer.log('AA TCP: remote socket closed', name: 'ProtocolConnection');
     _finish();
   }
 
@@ -142,6 +146,14 @@ class ProtocolConnection {
     if (_isClosed) {
       return;
     }
+
+    developer.log(
+      'Protocol connection failed',
+      name: 'ProtocolConnection',
+      error: error,
+      stackTrace: stackTrace,
+      level: 1000,
+    );
 
     if (!_frameController.isClosed) {
       _frameController.addError(error, stackTrace);

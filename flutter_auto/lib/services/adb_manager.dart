@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
 class AdbDevice {
@@ -24,6 +25,8 @@ class AdbDevice {
 }
 
 class AdbManager {
+  static final Logger _log = Logger('AdbManager');
+
   late final String _localAdbDir;
   late final String _adbExecutableName;
 
@@ -34,7 +37,6 @@ class AdbManager {
         '.';
 
     _localAdbDir = p.join(homeDir, '.flutter_auto_adb', 'platform-tools');
-
     _adbExecutableName = Platform.isWindows ? 'adb.exe' : 'adb';
   }
 
@@ -54,18 +56,13 @@ class AdbManager {
       final ProcessResult result = Process.runSync(checkCommand, ['adb']);
 
       return result.exitCode == 0;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _log.fine('Failed to check for global ADB.', error, stackTrace);
       return false;
     }
   }
 
   /// Executes an ADB command and returns its result.
-  ///
-  /// Examples:
-  ///   await executeCommand(['devices', '-l']);
-  ///   await executeCommand(['shell', 'getprop', 'ro.build.version.release']);
-  ///   await executeCommand(['forward', 'tcp:5277', 'tcp:5277']);
-  ///   await executeCommand(['connect', '192.168.1.100:5555']);
   Future<ProcessResult> executeCommand(
     List<String> arguments, {
     Duration timeout = const Duration(seconds: 30),
@@ -79,15 +76,20 @@ class AdbManager {
       ).timeout(timeout);
 
       if (result.exitCode != 0) {
-        stderr.writeln('ADB command failed: adb ${arguments.join(' ')}');
-        stderr.writeln('Exit code: ${result.exitCode}');
-        stderr.writeln(result.stderr);
+        _log.warning(
+          'ADB command failed: adb ${arguments.join(' ')} '
+          '(exit code: ${result.exitCode})\n${result.stderr}',
+        );
+      } else {
+        _log.fine('ADB command succeeded: adb ${arguments.join(' ')}');
       }
 
       return result;
-    } on IOException catch (error) {
+    } on IOException catch (error, stackTrace) {
+      _log.severe('Failed to execute ADB command.', error, stackTrace);
       throw Exception('Failed to execute ADB: $error');
-    } on ProcessException catch (error) {
+    } on ProcessException catch (error, stackTrace) {
+      _log.severe('Failed to start ADB process.', error, stackTrace);
       throw Exception('Failed to start ADB: $error');
     } on Exception {
       rethrow;
@@ -102,7 +104,7 @@ class AdbManager {
       throw Exception('Failed to start the ADB server: ${result.stderr}');
     }
 
-    print('ADB server started successfully.');
+    _log.info('ADB server started successfully.');
   }
 
   /// Starts a persistent ADB process with live stdout and stderr streams.
@@ -110,8 +112,10 @@ class AdbManager {
     await _ensureAdbInstalled();
 
     try {
+      _log.fine('Starting streaming ADB command: adb ${arguments.join(' ')}');
       return await Process.start(adbPath, arguments, runInShell: false);
-    } on ProcessException catch (error) {
+    } on ProcessException catch (error, stackTrace) {
+      _log.severe('Failed to start ADB streaming command.', error, stackTrace);
       throw Exception('Failed to start ADB streaming command: $error');
     }
   }
@@ -124,10 +128,10 @@ class AdbManager {
       throw Exception('Failed to stop the ADB server: ${result.stderr}');
     }
 
-    print('ADB server stopped.');
+    _log.info('ADB server stopped.');
   }
 
-  /// Retrieves and prints all connected ADB devices.
+  /// Retrieves and logs all connected ADB devices.
   ///
   /// Includes devices that are unauthorized or offline.
   Future<List<AdbDevice>> listDevices() async {
@@ -155,34 +159,32 @@ class AdbManager {
         continue;
       }
 
-      final AdbDevice device = AdbDevice(
-        serial: parts[0],
-        state: parts[1],
-        details: parts.length > 2 ? parts.sublist(2).join(' ') : '',
+      devices.add(
+        AdbDevice(
+          serial: parts[0],
+          state: parts[1],
+          details: parts.length > 2 ? parts.sublist(2).join(' ') : '',
+        ),
       );
-
-      devices.add(device);
     }
 
-    print('\nConnected ADB devices:');
+    _log.info('Connected ADB devices:');
 
     if (devices.isEmpty) {
-      print('  No devices found.');
+      _log.warning('No ADB devices found.');
     } else {
       for (final AdbDevice device in devices) {
         final String status = device.isAuthorized
             ? 'AUTHORIZED'
             : device.state.toUpperCase();
 
-        print('  ${device.serial} [$status]');
+        _log.info('  ${device.serial} [$status]');
 
         if (device.details.isNotEmpty) {
-          print('    ${device.details}');
+          _log.fine('    ${device.details}');
         }
       }
     }
-
-    print('');
 
     return devices;
   }
@@ -216,7 +218,7 @@ class AdbManager {
       );
     }
 
-    print('Setting up Android Auto port forwarding...');
+    _log.info('Setting up Android Auto port forwarding...');
 
     final ProcessResult result = await executeCommand([
       'forward',
@@ -228,7 +230,7 @@ class AdbManager {
       throw Exception('ADB port forwarding failed: ${result.stderr}');
     }
 
-    print('Success! Port forwarding is available at localhost:5277.');
+    _log.info('ADB port forwarding is available at localhost:5277.');
   }
 
   /// Downloads and installs ADB if it is not already available.
@@ -238,7 +240,7 @@ class AdbManager {
       return;
     }
 
-    print('ADB not found. Downloading Android SDK Platform Tools...');
+    _log.info('ADB not found. Downloading Android SDK Platform Tools...');
 
     final String downloadUrl = _getGoogleAdbUrl();
     final http.Response response = await http.get(Uri.parse(downloadUrl));
@@ -251,7 +253,6 @@ class AdbManager {
     }
 
     final Archive archive = ZipDecoder().decodeBytes(response.bodyBytes);
-
     final Directory targetParentDir = Directory(p.dirname(_localAdbDir));
 
     if (!targetParentDir.existsSync()) {
@@ -293,7 +294,7 @@ class AdbManager {
       );
     }
 
-    print('ADB installed successfully at: $_localAdbDir');
+    _log.info('ADB installed successfully at: $_localAdbDir');
   }
 
   /// Returns the official Google Platform Tools download URL.

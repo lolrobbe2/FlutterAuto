@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
+
 import '../message_router.dart';
 import '../protocol_connection.dart';
 import '../protocol_frame.dart';
@@ -7,6 +9,8 @@ import '../protocol_message.dart';
 
 class SslHandshakeTransport {
   SslHandshakeTransport({required this.connection, required this.router});
+
+  static final Logger _log = Logger('SslHandshakeTransport');
 
   static const int sslHandshakeMessageId = 0x0003;
 
@@ -18,7 +22,7 @@ class SslHandshakeTransport {
       return;
     }
 
-    print('[TLS transport] Sending ${tlsBytes.length} TLS bytes.');
+    _log.fine('[TLS transport] Sending ${tlsBytes.length} TLS bytes.');
 
     final Uint8List payload = Uint8List(2 + tlsBytes.length);
     final ByteData data = ByteData.sublistView(payload);
@@ -37,12 +41,11 @@ class SslHandshakeTransport {
     );
   }
 
-  
-Stream<Uint8List> get incomingTlsBytes {
+  Stream<Uint8List> get incomingTlsBytes {
     return router.forMessageId(sslHandshakeMessageId, channel: 0).map((
       ProtocolMessage message,
     ) {
-      print(
+      _log.fine(
         '[TLS transport] Received message '
         'id=0x${sslHandshakeMessageId.toRadixString(16)}, '
         'payload=${message.payload.length} bytes, '
@@ -64,5 +67,4 @@ Stream<Uint8List> get incomingTlsBytes {
       return Uint8List.fromList(message.payload.sublist(2));
     });
   }
-
 }
