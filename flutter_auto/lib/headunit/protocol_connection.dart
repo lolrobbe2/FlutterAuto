@@ -51,7 +51,9 @@ class ProtocolConnection {
     if (_isClosed || data.isEmpty) {
       return;
     }
-
+    print(
+      'AA RX: ${data.map((int b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+    );
     _appendData(data);
 
     try {
@@ -115,7 +117,9 @@ class ProtocolConnection {
     if (_isClosed) {
       throw StateError('Cannot send data on a closed connection.');
     }
-
+    print(
+      'AA TX: ${frame.encode().map((int b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+    );
     _socket.add(frame.encode());
     await _socket.flush();
   }
@@ -125,6 +129,7 @@ class ProtocolConnection {
   }
 
   void _onDone() {
+    print('AA TCP: remote socket closed');
     _finish();
   }
 

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_auto/generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
 import 'package:flutter_auto/generated/oaa/control/VersionResponseStatusEnum.pbenum.dart';
+import 'package:flutter_auto/headunit/message_router.dart';
 import 'package:flutter_auto/headunit/protocol_connection.dart';
 import 'package:flutter_auto/headunit/protocol_frame.dart';
 import 'package:flutter_auto/headunit/version_handshake.dart';
@@ -13,10 +14,10 @@ void main() {
   late ServerSocket server;
   late Socket phoneSocket;
   late ProtocolConnection connection;
+  late MessageRouter router;
   late StreamSubscription<List<int>> phoneSubscription;
-
-  final Completer<ProtocolFrame> requestCompleter = Completer<ProtocolFrame>();
-  final List<int> receivedBytes = <int>[];
+  late Completer<ProtocolFrame> requestCompleter;
+  late List<int> receivedBytes;
 
   setUp(() async {
     server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -30,8 +31,10 @@ void main() {
 
     phoneSocket = await acceptedSocket;
     connection = ProtocolConnection(headUnitSocket);
+    router = MessageRouter(connection);
 
-    receivedBytes.clear();
+    requestCompleter = Completer<ProtocolFrame>();
+    receivedBytes = <int>[];
 
     phoneSubscription = phoneSocket.listen((List<int> data) {
       receivedBytes.addAll(data);
@@ -54,6 +57,7 @@ void main() {
   });
 
   tearDown(() async {
+    await router.close();
     await connection.close();
     await phoneSubscription.cancel();
     phoneSocket.destroy();
@@ -63,14 +67,14 @@ void main() {
   test('sends version request and parses successful response', () async {
     final VersionHandshake handshake = VersionHandshake(
       connection: connection,
+      router: router,
       supportedMajorVersion: 1,
       supportedMinorVersion: 1,
     );
 
-    // Start the handshake; it sends a request and waits for the phone.
+    // Start the handshake before waiting for the request.
     final Future<VersionHandshakeResult> handshakeFuture = handshake.run();
 
-    // Verify the request sent by the Head Unit.
     final ProtocolFrame request = await requestCompleter.future.timeout(
       const Duration(seconds: 5),
     );

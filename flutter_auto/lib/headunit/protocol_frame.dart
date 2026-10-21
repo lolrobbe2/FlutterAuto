@@ -32,7 +32,6 @@ class ProtocolFrame {
 
     final int flags =
         frameType.index |
-        (messageType == MessageType.control ? 0x04 : 0) |
         (encryptionType == EncryptionType.encrypted ? 0x08 : 0);
 
     final Uint8List result = Uint8List(headerSize + payload.length);
@@ -61,7 +60,9 @@ class ProtocolFrame {
     final int flags = bytes[1];
 
     final int rawFrameType = flags & 0x03;
-    final int rawMessageType = (flags >> 2) & 0x01;
+    final MessageType messageType = bytes[0] == 0
+        ? MessageType.control
+        : MessageType.specific;
     final int rawEncryptionType = (flags >> 3) & 0x01;
 
     final FrameType frameType = FrameType.values[rawFrameType];
@@ -88,7 +89,7 @@ class ProtocolFrame {
     final ProtocolFrame frame = ProtocolFrame(
       channel: bytes[0],
       frameType: frameType,
-      messageType: MessageType.values[rawMessageType],
+      messageType: messageType,
       encryptionType: EncryptionType.values[rawEncryptionType],
       payload: payload,
       totalMessageSize: totalMessageSize,

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter_auto/headunit/message_router.dart';
+
 import '../generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
 import '../generated/oaa/control/VersionResponseStatusEnum.pbenum.dart';
 import 'protocol_connection.dart';
@@ -22,12 +24,14 @@ class VersionHandshakeResult {
 class VersionHandshake {
   VersionHandshake({
     required this.connection,
+    required this.router,
     required this.supportedMajorVersion,
     required this.supportedMinorVersion,
     this.timeout = const Duration(seconds: 10),
   });
 
   final ProtocolConnection connection;
+  final MessageRouter router;
   final int supportedMajorVersion;
   final int supportedMinorVersion;
   final Duration timeout;
@@ -101,30 +105,30 @@ class VersionHandshake {
     );
   }
 
-  Future<ProtocolMessage> _waitForResponse() async {
-    await for (final ProtocolMessage message in connection.messages) {
-      if (message.channel != 0 ||
-          message.messageType != MessageType.control ||
-          message.payload.length < 2) {
-        continue;
-      }
+  Future<ProtocolMessage> _waitForResponse() {
+    return router
+        .forMessageId(ControlMessage_Enum.VERSION_RESPONSE.value, channel: 0)
+        .first
+        .then((ProtocolMessage message) {
+          if (message.messageType != MessageType.control) {
+            throw const FormatException(
+              'Version response is not a control message.',
+            );
+          }
 
-      final ByteData data = ByteData.sublistView(message.payload);
-      final int messageId = data.getUint16(0, Endian.big);
+          if (message.encryptionType != EncryptionType.plain) {
+            throw const FormatException(
+              'Expected an unencrypted version response.',
+            );
+          }
 
-      if (messageId == ControlMessage_Enum.VERSION_RESPONSE.value) {
-        return ProtocolMessage(
-          channel: message.channel,
-          messageType: message.messageType,
-          encryptionType: message.encryptionType,
-          payload: Uint8List.fromList(message.payload.sublist(2)),
-        );
-      }
-    }
-
-    throw StateError(
-      'Connection closed before the version response was received.',
-    );
+          return ProtocolMessage(
+            channel: message.channel,
+            messageType: message.messageType,
+            encryptionType: message.encryptionType,
+            payload: Uint8List.fromList(message.payload.sublist(2)),
+          );
+        });
   }
 
   void _validateVersion(int version, String name) {

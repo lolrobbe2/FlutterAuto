@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_auto/headunit/message_router.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
 
 import 'protocol_connection.dart';
@@ -39,6 +40,8 @@ class HeadunitSession {
 
   HeadunitSessionState _state = HeadunitSessionState.disconnected;
   ProtocolConnection? _connection;
+  MessageRouter? _router;
+
   Future<void>? _disconnectFuture;
   bool _disposed = false;
 
@@ -47,6 +50,8 @@ class HeadunitSession {
   Stream<HeadunitSessionState> get states => _stateController.stream;
 
   ProtocolConnection? get connection => _connection;
+
+  MessageRouter? get router => _router;
 
   bool get isConnected => _state == HeadunitSessionState.connected;
 
@@ -84,8 +89,10 @@ class HeadunitSession {
       );
 
       final ProtocolConnection protocolConnection = ProtocolConnection(socket);
+      final MessageRouter messageRouter = MessageRouter(protocolConnection);
 
       _connection = protocolConnection;
+      _router = messageRouter;
 
       // Monitor the lifetime of the TCP connection.
       protocolConnection.done.then((_) {
@@ -93,7 +100,9 @@ class HeadunitSession {
             _state != HeadunitSessionState.disconnecting &&
             _state != HeadunitSessionState.failed) {
           _connection = null;
+          _router = null;
           _setState(HeadunitSessionState.disconnected);
+          unawaited(messageRouter.close());
         }
       });
 
@@ -101,6 +110,7 @@ class HeadunitSession {
 
       final VersionHandshakeResult result = await VersionHandshake(
         connection: protocolConnection,
+        router: messageRouter,
         supportedMajorVersion: majorVersion,
         supportedMinorVersion: minorVersion,
       ).run();
@@ -114,20 +124,26 @@ class HeadunitSession {
       _setState(HeadunitSessionState.connected);
       return result;
     } catch (_) {
-      _setState(HeadunitSessionState.failed);
-
       final ProtocolConnection? currentConnection = _connection;
+      final MessageRouter? currentRouter = _router;
+
       _connection = null;
+      _router = null;
+
+      if (currentRouter != null) {
+        await currentRouter.close();
+      }
 
       if (currentConnection != null) {
         await currentConnection.close();
       }
 
+      _setState(HeadunitSessionState.failed);
       rethrow;
     }
   }
 
-  /// Closes the protocol connection and resets the session.
+  /// Closes the router and protocol connection, then resets the session.
   Future<void> disconnect() {
     final Future<void>? existingFuture = _disconnectFuture;
 
@@ -147,9 +163,16 @@ class HeadunitSession {
     _setState(HeadunitSessionState.disconnecting);
 
     final ProtocolConnection? currentConnection = _connection;
+    final MessageRouter? currentRouter = _router;
+
     _connection = null;
+    _router = null;
 
     try {
+      if (currentRouter != null) {
+        await currentRouter.close();
+      }
+
       if (currentConnection != null) {
         await currentConnection.close();
       }

@@ -28,6 +28,7 @@ class MessageAssembler {
             encryptionType: frame.encryptionType,
             payload: Uint8List.fromList(frame.payload),
           );
+          break;
 
         case FrameType.first:
           if (pendingMessages.containsKey(channel)) {
@@ -58,6 +59,7 @@ class MessageAssembler {
             totalMessageSize: totalMessageSize,
             payload: BytesBuilder(copy: false)..add(frame.payload),
           );
+          break;
 
         case FrameType.middle:
           final _PendingMessage? pending = pendingMessages[channel];
@@ -81,6 +83,7 @@ class MessageAssembler {
           }
 
           pending.payload.add(frame.payload);
+          break;
 
         case FrameType.last:
           final _PendingMessage? pending = pendingMessages[channel];
