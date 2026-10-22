@@ -1,13 +1,17 @@
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter_auto/generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
-import 'package:flutter_auto/generated/oaa/control/VersionResponseStatusEnum.pbenum.dart';
 import 'package:flutter_auto/headunit/message_router.dart';
 import 'package:flutter_auto/headunit/protocol_connection.dart';
 import 'package:flutter_auto/headunit/protocol_frame.dart';
+import 'package:flutter_auto/headunit/protocol_message_sender.dart';
+import 'package:flutter_auto/headunit/service/channel_service_registry.dart';
+import 'package:flutter_auto/headunit/service/control_service.dart';
 import 'package:flutter_auto/headunit/version_handshake.dart';
+import 'package:flutter_auto/generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
+import 'package:flutter_auto/generated/oaa/control/VersionResponseStatusEnum.pbenum.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -15,6 +19,9 @@ void main() {
   late Socket phoneSocket;
   late ProtocolConnection connection;
   late MessageRouter router;
+  late ProtocolMessageSender sender;
+  late ChannelServiceRegistry registry;
+  late ControlService controlService;
   late StreamSubscription<List<int>> phoneSubscription;
   late Completer<ProtocolFrame> requestCompleter;
   late List<int> receivedBytes;
@@ -32,6 +39,17 @@ void main() {
     phoneSocket = await acceptedSocket;
     connection = ProtocolConnection(headUnitSocket);
     router = MessageRouter(connection);
+    sender = ProtocolMessageSender(connection);
+
+    registry = ChannelServiceRegistry(
+      router: router,
+      sender: sender,
+    );
+
+    controlService = ControlService(registry: registry);
+
+    registry.register(controlService);
+    registry.start();
 
     requestCompleter = Completer<ProtocolFrame>();
     receivedBytes = <int>[];
@@ -43,7 +61,8 @@ void main() {
         return;
       }
 
-      final int payloadLength = (receivedBytes[2] << 8) | receivedBytes[3];
+      final int payloadLength =
+          (receivedBytes[2] << 8) | receivedBytes[3];
       final int frameLength = 4 + payloadLength;
 
       if (receivedBytes.length >= frameLength) {
@@ -57,22 +76,24 @@ void main() {
   });
 
   tearDown(() async {
+    await phoneSubscription.cancel();
+    await registry.dispose();
+    await controlService.dispose();
     await router.close();
     await connection.close();
-    await phoneSubscription.cancel();
     phoneSocket.destroy();
     await server.close();
   });
 
   test('sends version request and parses successful response', () async {
     final VersionHandshake handshake = VersionHandshake(
-      connection: connection,
-      router: router,
+      controlService: controlService,
       supportedMajorVersion: 1,
       supportedMinorVersion: 1,
+      timeout: const Duration(seconds: 5),
     );
 
-    // Start the handshake before waiting for the request.
+    // Start negotiation and listen for the outgoing request.
     final Future<VersionHandshakeResult> handshakeFuture = handshake.run();
 
     final ProtocolFrame request = await requestCompleter.future.timeout(
@@ -81,8 +102,11 @@ void main() {
 
     expect(request.channel, 0);
     expect(request.frameType, FrameType.bulk);
-    expect(request.messageType, MessageType.control);
+    expect(request.messageType, MessageType.specific);
     expect(request.encryptionType, EncryptionType.plain);
+
+    // The complete logical payload is message ID + four-byte version body.
+    expect(request.payload.length, 6);
 
     final ByteData requestData = ByteData.sublistView(request.payload);
 
@@ -93,7 +117,7 @@ void main() {
     expect(requestData.getUint16(2, Endian.big), 1);
     expect(requestData.getUint16(4, Endian.big), 1);
 
-    // Simulate the phone returning VERSION_RESPONSE.
+    // Simulate the phone's plaintext, specific VERSION_RESPONSE.
     final Uint8List responsePayload = Uint8List(8);
     final ByteData responseData = ByteData.sublistView(responsePayload);
 
@@ -113,7 +137,7 @@ void main() {
     final ProtocolFrame response = ProtocolFrame(
       channel: 0,
       frameType: FrameType.bulk,
-      messageType: MessageType.control,
+      messageType: MessageType.specific,
       encryptionType: EncryptionType.plain,
       payload: responsePayload,
     );

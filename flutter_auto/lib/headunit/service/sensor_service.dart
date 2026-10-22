@@ -2,20 +2,21 @@ import 'package:flutter_auto/generated/oaa/control/ChannelDescriptorData.pb.dart
 import 'package:flutter_auto/generated/oaa/sensor/SensorChannelConfigData.pb.dart';
 import 'package:flutter_auto/generated/oaa/sensor/SensorChannelData.pb.dart';
 import 'package:flutter_auto/generated/oaa/sensor/SensorTypeEnum.pbenum.dart';
+import 'package:flutter_auto/headunit/service/channel_service.dart';
 
-class SensorService {
+class SensorService extends ChannelService {
   static const String serviceName = 'sensor';
   static const int defaultChannelId = 2;
+
+  SensorService() : super(channelId: defaultChannelId);
 
   ChannelDescriptor buildDescriptor(int channelId) {
     return ChannelDescriptor()
       ..channelId = channelId
       ..sensorChannel = (SensorChannel()
         ..sensors.addAll([
-          SensorTypeEntry()
-            ..sensorType = SensorType_Enum.NIGHT_DATA,
-          SensorTypeEntry()
-            ..sensorType = SensorType_Enum.DRIVING_STATUS,
+          SensorTypeEntry()..sensorType = SensorType_Enum.NIGHT_DATA,
+          SensorTypeEntry()..sensorType = SensorType_Enum.DRIVING_STATUS,
         ]));
   }
 

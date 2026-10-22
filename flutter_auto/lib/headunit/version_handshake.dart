@@ -1,13 +1,12 @@
+
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter_auto/headunit/message_router.dart';
+import 'package:flutter_auto/headunit/protocol_frame.dart';
+import 'package:flutter_auto/headunit/protocol_message.dart';
+import 'package:flutter_auto/headunit/service/control_service.dart';
 
-import '../generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
 import '../generated/oaa/control/VersionResponseStatusEnum.pbenum.dart';
-import 'protocol_connection.dart';
-import 'protocol_frame.dart';
-import 'protocol_message.dart';
 
 class VersionHandshakeResult {
   const VersionHandshakeResult({
@@ -23,15 +22,13 @@ class VersionHandshakeResult {
 
 class VersionHandshake {
   VersionHandshake({
-    required this.connection,
-    required this.router,
+    required this.controlService,
     required this.supportedMajorVersion,
     required this.supportedMinorVersion,
     this.timeout = const Duration(seconds: 10),
   });
 
-  final ProtocolConnection connection;
-  final MessageRouter router;
+  final ControlService controlService;
   final int supportedMajorVersion;
   final int supportedMinorVersion;
   final Duration timeout;
@@ -40,60 +37,67 @@ class VersionHandshake {
     _validateVersion(supportedMajorVersion, 'major');
     _validateVersion(supportedMinorVersion, 'minor');
 
-    final Future<ProtocolMessage> responseFuture = _waitForResponse();
-
-    final Uint8List payload = Uint8List(6);
-    final ByteData data = ByteData.sublistView(payload);
-
-    data.setUint16(0, ControlMessage_Enum.VERSION_REQUEST.value, Endian.big);
-    data.setUint16(2, supportedMajorVersion, Endian.big);
-    data.setUint16(4, supportedMinorVersion, Endian.big);
-
-    await connection.send(
-      ProtocolFrame(
-        channel: 0,
-        frameType: FrameType.bulk,
-        messageType: MessageType.specific,
-        encryptionType: EncryptionType.plain,
-        payload: payload,
-      ),
+    // Subscribe before sending to avoid missing a fast response.
+    final Future<ProtocolMessage> responseFuture =
+        controlService.waitForMessage(
+      ControlService.versionResponseId,
     );
 
-    final ProtocolMessage response = await responseFuture.timeout(timeout);
+    // ControlService owns the message ID, framing, and transport.
+    await controlService.sendVersionRequest(
+      supportedMajorVersion,
+      supportedMinorVersion,
+    );
 
-    if (response.channel != 0 || response.messageType != MessageType.specific) {
+    final ProtocolMessage response =
+        await responseFuture.timeout(timeout);
+
+    if (response.channel != ControlService.controlChannel) {
+      throw FormatException(
+        'VERSION_RESPONSE arrived on channel ${response.channel}, '
+        'expected ${ControlService.controlChannel}.',
+      );
+    }
+
+    if (response.messageType != MessageType.specific) {
       throw const FormatException(
-        'Version response was not received on the control channel.',
+        'VERSION_RESPONSE must use MessageType.specific.',
       );
     }
 
     if (response.encryptionType != EncryptionType.plain) {
-      throw const FormatException('Expected an unencrypted version response.');
-    }
-
-    if (response.payload.length != 6) {
-      throw FormatException(
-        'Expected a 6-byte version response body, '
-        'received ${response.payload.length} bytes.',
+      throw const FormatException(
+        'VERSION_RESPONSE must be unencrypted.',
       );
     }
 
-    final ByteData responseData = ByteData.sublistView(response.payload);
-    final int majorVersion = responseData.getUint16(0, Endian.big);
-    final int minorVersion = responseData.getUint16(2, Endian.big);
-    final int statusValue = responseData.getUint16(4, Endian.big);
+    // ControlService removes the two-byte message ID.
+    final Uint8List body = controlService.bodyOf(response);
 
-    final ProtocolStatus_Enum? status = ProtocolStatus_Enum.valueOf(
-      statusValue,
-    );
+    if (body.length != 6) {
+      throw FormatException(
+        'Expected a 6-byte version response body, '
+        'received ${body.length} bytes.',
+      );
+    }
+
+    final ByteData data = ByteData.sublistView(body);
+    final int majorVersion = data.getUint16(0, Endian.big);
+    final int minorVersion = data.getUint16(2, Endian.big);
+    final int statusValue = data.getUint16(4, Endian.big);
+
+    final ProtocolStatus_Enum? status =
+        ProtocolStatus_Enum.valueOf(statusValue);
 
     if (status == null) {
-      throw FormatException('Unknown version response status: $statusValue.');
+      throw FormatException(
+        'Unknown version response status: $statusValue.',
+      );
     }
 
     if (status != ProtocolStatus_Enum.STATUS_SUCCESS) {
       throw FormatException(
-        'Phone rejected the version handshake with status '
+        'Phone rejected version negotiation with '
         '${status.name} ($statusValue).',
       );
     }
@@ -103,32 +107,6 @@ class VersionHandshake {
       minorVersion: minorVersion,
       status: status,
     );
-  }
-
-  Future<ProtocolMessage> _waitForResponse() {
-    return router
-        .forMessageId(ControlMessage_Enum.VERSION_RESPONSE.value, channel: 0)
-        .first
-        .then((ProtocolMessage message) {
-          if (message.messageType != MessageType.specific) {
-            throw const FormatException(
-              'Version response is not a control message.',
-            );
-          }
-
-          if (message.encryptionType != EncryptionType.plain) {
-            throw const FormatException(
-              'Expected an unencrypted version response.',
-            );
-          }
-
-          return ProtocolMessage(
-            channel: message.channel,
-            messageType: message.messageType,
-            encryptionType: message.encryptionType,
-            payload: Uint8List.fromList(message.payload.sublist(2)),
-          );
-        });
   }
 
   void _validateVersion(int version, String name) {

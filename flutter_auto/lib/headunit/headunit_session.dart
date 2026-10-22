@@ -1,19 +1,18 @@
+
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
-import 'package:flutter_auto/generated/oaa/control/AuthCompleteIndicationMessage.pb.dart';
-import 'package:flutter_auto/generated/oaa/control/ServiceDiscoveryResponseMessage.pb.dart';
 import 'package:flutter_auto/headunit/message_router.dart';
-import 'package:flutter_auto/headunit/protocol_frame.dart';
+import 'package:flutter_auto/headunit/protocol_message_sender.dart';
 import 'package:flutter_auto/headunit/security/android_auto_tls_client.dart';
 import 'package:flutter_auto/headunit/security/head_unit_identity.dart';
 import 'package:flutter_auto/headunit/security/ssl_handshake_transport.dart';
+import 'package:flutter_auto/headunit/service/channel_service_registry.dart';
+import 'package:flutter_auto/headunit/service/control_service.dart';
 import 'package:flutter_auto/headunit/service/input_service.dart';
 import 'package:flutter_auto/headunit/service/media_audio_service.dart';
 import 'package:flutter_auto/headunit/service/microphone_service.dart';
 import 'package:flutter_auto/headunit/service/sensor_service.dart';
-import 'package:flutter_auto/headunit/service/service_manager.dart';
 import 'package:flutter_auto/headunit/service/system_audio_service.dart';
 import 'package:flutter_auto/headunit/service/video_service.dart';
 import 'package:flutter_auto/headunit/service/voice_service.dart';
@@ -71,17 +70,9 @@ enum StatusCode {
   const StatusCode(this.value);
 
   final int value;
-
-  static StatusCode? fromValue(int value) {
-    for (final status in StatusCode.values) {
-      if (status.value == value) return status;
-    }
-    return null;
-  }
 }
 
 class HeadunitSession {
-  final Logger _log = Logger('HeadunitSession');
   HeadunitSession({
     required this.adbManager,
     HeadUnitIdentity? identity,
@@ -93,9 +84,11 @@ class HeadunitSession {
     this.connectionTimeout = const Duration(seconds: 10),
   }) : identity = identity ?? HeadUnitIdentity();
 
-  final HeadUnitIdentity identity;
+  final Logger _log = Logger('HeadunitSession');
 
+  final HeadUnitIdentity identity;
   final AdbManager adbManager;
+
   final String host;
   final int port;
   final int majorVersion;
@@ -106,6 +99,7 @@ class HeadunitSession {
   final StreamController<HeadunitSessionState> _stateController =
       StreamController<HeadunitSessionState>.broadcast();
 
+  // Channel services are long-lived and may be reused across connections.
   final inputService = InputService();
   final sensorService = SensorService();
   final videoService = VideoService();
@@ -115,10 +109,13 @@ class HeadunitSession {
   final microphoneInputService = MicrophoneInputService();
 
   HeadunitSessionState _state = HeadunitSessionState.disconnected;
+
   ProtocolConnection? _connection;
-  AndroidAutoTlsClient? _tlsClient;
   MessageRouter? _router;
-  ServiceManager? _serviceManager;
+  ProtocolMessageSender? _sender;
+  ChannelServiceRegistry? _registry;
+  ControlService? _controlService;
+  AndroidAutoTlsClient? _tlsClient;
 
   Future<void>? _disconnectFuture;
   bool _disposed = false;
@@ -127,23 +124,21 @@ class HeadunitSession {
 
   Stream<HeadunitSessionState> get states => _stateController.stream;
 
-  ProtocolConnection? get connection => _connection;
-  MessageRouter? get router => _router;
-  ServiceManager? get serviceManager => _serviceManager;
-
   bool get isConnected => _state == HeadunitSessionState.connected;
 
+  ProtocolConnection? get connection => _connection;
+  MessageRouter? get router => _router;
+  ProtocolMessageSender? get sender => _sender;
+  ChannelServiceRegistry? get channelRegistry => _registry;
+  ControlService? get controlService => _controlService;
+
   void _setState(HeadunitSessionState nextState) {
-    if (_disposed || _state == nextState) {
-      return;
-    }
+    if (_disposed || _state == nextState) return;
 
     _state = nextState;
     _stateController.add(nextState);
   }
 
-  /// Configures ADB forwarding, opens the TCP connection,
-  /// and negotiates the Android Auto protocol version.
   Future<VersionHandshakeResult> connect() async {
     if (_disposed) {
       throw StateError('This HeadunitSession has been disposed.');
@@ -160,241 +155,251 @@ class HeadunitSession {
         await adbManager.initializeAndroidAutoLink();
       }
 
-      final Socket socket = await Socket.connect(
+      final socket = await Socket.connect(
         host,
         port,
         timeout: connectionTimeout,
       );
 
-      final ProtocolConnection protocolConnection = ProtocolConnection(socket);
-      final MessageRouter messageRouter = MessageRouter(protocolConnection);
+      final connection = ProtocolConnection(socket);
+      final router = MessageRouter(connection);
+      final sender = ProtocolMessageSender(connection);
 
-      _connection = protocolConnection;
-      _router = messageRouter;
+      // Registry and channel 0 control service are created before
+      // version negotiation so every inbound message uses the same route.
+      final registry = ChannelServiceRegistry(
+        router: router,
+        sender: sender,
+      );
 
-      // Monitor the lifetime of the TCP connection.
-      protocolConnection.done.then((_) {
-        if (identical(_connection, protocolConnection) &&
-            _state != HeadunitSessionState.disconnecting &&
-            _state != HeadunitSessionState.failed) {
-          _connection = null;
-          _router = null;
-          _setState(HeadunitSessionState.disconnected);
-          unawaited(messageRouter.close());
+      final controlService = ControlService(registry: registry);
+
+      _connection = connection;
+      _router = router;
+      _sender = sender;
+      _registry = registry;
+      _controlService = controlService;
+
+      connection.done.then((_) async {
+        if (!identical(_connection, connection) ||
+            _state == HeadunitSessionState.disconnecting ||
+            _state == HeadunitSessionState.failed) {
+          return;
         }
+
+        _log.warning('Protocol connection closed by remote peer.');
+
+        final currentRegistry = _registry;
+        final currentControlService = _controlService;
+
+        _connection = null;
+        _router = null;
+        _sender = null;
+        _registry = null;
+        _controlService = null;
+        _tlsClient = null;
+
+        _setState(HeadunitSessionState.disconnected);
+
+        await currentRegistry?.dispose();
+        await currentControlService?.dispose();
+        await router.close();
       });
+
+      // Register the control service on channel 0 just like every
+      // data service. It owns version, TLS, auth, and discovery messages.
+      registry.register(controlService);
+
+      registry.register(inputService);
+      registry.register(sensorService);
+      registry.register(videoService);
+      registry.register(mediaAudioService);
+      registry.register(speechAudioService);
+      registry.register(systemAudioService);
+      registry.register(microphoneInputService);
+
+      // Route all incoming messages before sending the version request.
+      registry.start();
 
       _setState(HeadunitSessionState.negotiatingVersion);
 
-      final VersionHandshakeResult result = await VersionHandshake(
-        connection: protocolConnection,
-        router: messageRouter,
+      final versionResult = await VersionHandshake(
+        controlService: controlService,
         supportedMajorVersion: majorVersion,
         supportedMinorVersion: minorVersion,
+        timeout: connectionTimeout,
       ).run();
 
-      if (protocolConnection.isClosed) {
+      if (connection.isClosed) {
         throw StateError(
           'The protocol connection closed during version negotiation.',
         );
       }
+
+      // Identity and certificate provisioning remain session-level
+      // responsibilities, not channel-message responsibilities.
       await identity.ensureIdentity();
       await identity.debugCertificatePem();
-      final SslHandshakeTransport tlsTransport = SslHandshakeTransport(
-        connection: protocolConnection,
-        router: messageRouter,
+
+      final tlsTransport = SslHandshakeTransport(
+        controlService: controlService,
       );
 
-      final AndroidAutoTlsClient tlsClient = AndroidAutoTlsClient(
+      final tlsClient = AndroidAutoTlsClient(
         transport: tlsTransport,
         identityStore: identity,
       );
 
       _tlsClient = tlsClient;
+
+      // SSL_HANDSHAKE messages travel through ControlService.
       await tlsClient.connect();
 
-      if (protocolConnection.isClosed) {
+      if (connection.isClosed) {
         throw StateError(
           'The protocol connection closed during TLS negotiation.',
         );
       }
 
-      messageRouter.setApplicationDecryptor(tlsClient.decryptApplicationData);
-      Future<void> sendControlPayload(Uint8List payload) async {
-        if (!tlsClient.isConnected || protocolConnection.isClosed) {
-          throw StateError(
-            'Cannot send application data: the connection is not ready.',
-          );
-        }
-
-        final Uint8List encryptedPayload = await tlsClient
-            .encryptApplicationData(payload);
-
-        await protocolConnection.send(
-          ProtocolFrame(
-            channel: 0,
-            frameType: FrameType.bulk,
-            messageType: MessageType.control,
-            encryptionType: EncryptionType.encrypted,
-            payload: encryptedPayload,
-          ),
-        );
-      }
-
-      final ServiceManager serviceManager = ServiceManager(
-        router: messageRouter,
-        sendControlPayload: sendControlPayload,
+      // Encryption is enabled only after the TLS handshake completes.
+      sender.setApplicationEncryptor(
+        tlsClient.encryptApplicationData,
       );
 
-      final Uint8List authProtobuf = AuthCompleteIndication(
-        status: StatusCode.ok.value,
-      ).writeToBuffer();
-
-      final Uint8List authPayload = Uint8List(2 + authProtobuf.length);
-      ByteData.sublistView(authPayload).setUint16(0, 0x0004, Endian.big);
-      authPayload.setRange(2, authPayload.length, authProtobuf);
-
-      // Send through the existing TLS-protected control-message path.
-      _serviceManager = serviceManager;
-      serviceManager.registerService(
-        name: InputService.serviceName,
-        channelId: InputService.defaultChannelId,
-        buildDescriptor: inputService.buildDescriptor,
+      router.setApplicationDecryptor(
+        tlsClient.decryptApplicationData,
       );
 
-      serviceManager.registerService(
-        name: SensorService.serviceName,
-        channelId: SensorService.defaultChannelId,
-        buildDescriptor: sensorService.buildDescriptor,
-      );
+      // ControlService chooses the required framing for AUTH_COMPLETE:
+      // message ID 0x0004, plaintext, MessageType.specific.
+      await controlService.sendAuthComplete(StatusCode.ok.value);
 
-      serviceManager.registerService(
-        name: VideoService.serviceName,
-        channelId: VideoService.defaultChannelId,
-        buildDescriptor: videoService.buildDescriptor,
-      );
-
-      serviceManager.registerService(
-        name: MediaAudioService.serviceName,
-        channelId: MediaAudioService.defaultChannelId,
-        buildDescriptor: mediaAudioService.buildDescriptor,
-      );
-      serviceManager.registerService(
-        name: SpeechAudioService.serviceName,
-        channelId: SpeechAudioService.defaultChannelId,
-        buildDescriptor: speechAudioService.buildDescriptor,
-      );
-
-      serviceManager.registerService(
-        name: SystemAudioService.serviceName,
-        channelId: SystemAudioService.defaultChannelId,
-        buildDescriptor: systemAudioService.buildDescriptor,
-      );
-
-      serviceManager.registerService(
-        name: MicrophoneInputService.serviceName,
-        channelId: MicrophoneInputService.defaultChannelId,
-        buildDescriptor: microphoneInputService.buildDescriptor,
-      );
-      await protocolConnection.send(
-        ProtocolFrame(
-          channel: 0,
-          frameType: FrameType.bulk,
-          messageType: MessageType.specific,
-          encryptionType: EncryptionType.plain,
-          payload: authPayload,
+      // The control service receives 0x0005 and sends the encrypted
+      // 0x0006 response itself. No response is built in this class.
+      final response = await controlService.discoveryResponse.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException(
+          'Timed out waiting for service discovery to complete.',
         ),
       );
-      // Send 0x0006 immediately, advertising all registered services.
-      serviceManager.start(); // Register the 0x0005 listener first.
 
-      final response = await serviceManager.discover(); // Reply with 0x0006
-      _log.info('Advertised ${response.channels.length} local channels.');
-      final phoneRequest = await serviceManager.waitForPhoneRequest();
+      final phoneRequest = await controlService.phoneRequest;
 
       _log.info(
-        'Received discovery request from '
-        '${phoneRequest.deviceName} / ${phoneRequest.deviceBrand}',
+        'Service discovery completed: '
+        '${response.channels.length} channels advertised.',
       );
+      _log.info(
+        'Phone: ${phoneRequest.deviceName} / '
+        '${phoneRequest.deviceBrand}',
+      );
+
       _setState(HeadunitSessionState.connected);
-      return result;
-    } catch (_) {
-      final ProtocolConnection? currentConnection = _connection;
-      final MessageRouter? currentRouter = _router;
-      final AndroidAutoTlsClient? currentTlsClient = _tlsClient;
-      if (currentTlsClient != null) {
-        await currentTlsClient.close();
-      }
+      return versionResult;
+    } catch (error, stackTrace) {
+      _log.severe(
+        'Headunit session connection failed.',
+        error,
+        stackTrace,
+      );
 
-      if (currentRouter != null) {
-        await currentRouter.close();
-      }
+      await _cleanupConnection(
+        failedState: HeadunitSessionState.failed,
+      );
 
-      if (currentConnection != null) {
-        await currentConnection.close();
-      }
-      _tlsClient = null;
-      _connection = null;
-      _router = null;
-
-      _setState(HeadunitSessionState.failed);
       rethrow;
     }
   }
 
-  /// Closes the router and protocol connection, then resets the session.
-  Future<void> disconnect() {
-    final Future<void>? existingFuture = _disconnectFuture;
+  Future<void> _cleanupConnection({
+    required HeadunitSessionState failedState,
+  }) async {
+    final tlsClient = _tlsClient;
+    final registry = _registry;
+    final controlService = _controlService;
+    final router = _router;
+    final connection = _connection;
 
-    if (existingFuture != null) {
-      return existingFuture;
+    // Clear references first, preventing connection callbacks from
+    // disposing the same objects a second time.
+    _tlsClient = null;
+    _registry = null;
+    _controlService = null;
+    _sender = null;
+    _router = null;
+    _connection = null;
+
+    try {
+      await tlsClient?.close();
+    } catch (error, stackTrace) {
+      _log.warning('Error closing TLS client.', error, stackTrace);
     }
+
+    try {
+      await registry?.dispose();
+    } catch (error, stackTrace) {
+      _log.warning('Error disposing channel registry.', error, stackTrace);
+    }
+
+    try {
+      await controlService?.dispose();
+    } catch (error, stackTrace) {
+      _log.warning('Error disposing control service.', error, stackTrace);
+    }
+
+    try {
+      await router?.close();
+    } catch (error, stackTrace) {
+      _log.warning('Error closing message router.', error, stackTrace);
+    }
+
+    try {
+      await connection?.close();
+    } catch (error, stackTrace) {
+      _log.warning('Error closing protocol connection.', error, stackTrace);
+    }
+
+    _setState(failedState);
+  }
+
+  Future<void> disconnect() {
+    final existingFuture = _disconnectFuture;
+    if (existingFuture != null) return existingFuture;
 
     _disconnectFuture = _disconnectInternal();
     return _disconnectFuture!;
   }
 
   Future<void> _disconnectInternal() async {
-    if (_disposed) {
-      return;
-    }
+    if (_disposed) return;
 
     _setState(HeadunitSessionState.disconnecting);
 
-    final ProtocolConnection? currentConnection = _connection;
-    final MessageRouter? currentRouter = _router;
-    final AndroidAutoTlsClient? currentTlsClient = _tlsClient;
-
-    _tlsClient = null;
-    _connection = null;
-    _router = null;
-
     try {
-      if (currentTlsClient != null) {
-        await currentTlsClient.close();
-      }
-
-      if (currentRouter != null) {
-        await currentRouter.close();
-      }
-
-      if (currentConnection != null) {
-        await currentConnection.close();
-      }
+      await _cleanupConnection(
+        failedState: HeadunitSessionState.disconnected,
+      );
     } finally {
-      _setState(HeadunitSessionState.disconnected);
       _disconnectFuture = null;
     }
   }
 
-  /// Releases session resources. Call when the session is no longer used.
   Future<void> dispose() async {
-    if (_disposed) {
-      return;
-    }
+    if (_disposed) return;
 
     await disconnect();
     _disposed = true;
+
+    // Dispose the persistent data services only when the whole session
+    // object is no longer going to be reused.
+    await inputService.dispose();
+    await sensorService.dispose();
+    await videoService.dispose();
+    await mediaAudioService.dispose();
+    await speechAudioService.dispose();
+    await systemAudioService.dispose();
+    await microphoneInputService.dispose();
+
     await _stateController.close();
   }
 }

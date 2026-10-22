@@ -5,10 +5,13 @@ import 'package:flutter_auto/generated/oaa/video/DisplayTypeEnum.pb.dart';
 import 'package:flutter_auto/generated/oaa/video/VideoConfigData.pb.dart';
 import 'package:flutter_auto/generated/oaa/video/VideoFPSEnum.pb.dart';
 import 'package:flutter_auto/generated/oaa/video/VideoResolutionEnum.pb.dart';
+import 'package:flutter_auto/headunit/service/channel_service.dart';
 
-class VideoService {
+class VideoService extends ChannelService {
   static const String serviceName = 'video';
   static const int defaultChannelId = 3;
+
+  VideoService() : super(channelId: defaultChannelId);
 
   ChannelDescriptor buildDescriptor(int channelId) {
     return ChannelDescriptor()
