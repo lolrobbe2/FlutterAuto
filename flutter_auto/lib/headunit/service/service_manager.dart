@@ -28,9 +28,9 @@ class ServiceManager {
     required MessageRouter router,
     required ControlPayloadSender sendControlPayload,
     this.headUnitName = 'FlutterAuto',
-    this.carModel = '',
-    this.headunitManufacturer = '',
-    this.headunitModel = '',
+    this.carModel = 'Android Auto Emulator',
+    this.headunitManufacturer = 'FlutterAuto',
+    this.headunitModel = 'FlutterAuto-01',
     this.swVersion = '1.0.0',
   }) : _router = router,
        _sendControlPayload = sendControlPayload;
@@ -195,9 +195,7 @@ class ServiceManager {
 
       // Capabilities
       canPlayNativeMediaDuringVr: false,
-      sessionConfiguration: 0,
       displayName: 'FlutterAuto',
-      probeForSupport: false,
     );
 
     final responseBytes = response.writeToBuffer();

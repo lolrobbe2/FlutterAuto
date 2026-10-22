@@ -11,9 +11,12 @@ import 'package:flutter_auto/headunit/security/head_unit_identity.dart';
 import 'package:flutter_auto/headunit/security/ssl_handshake_transport.dart';
 import 'package:flutter_auto/headunit/service/input_service.dart';
 import 'package:flutter_auto/headunit/service/media_audio_service.dart';
+import 'package:flutter_auto/headunit/service/microphone_service.dart';
 import 'package:flutter_auto/headunit/service/sensor_service.dart';
 import 'package:flutter_auto/headunit/service/service_manager.dart';
+import 'package:flutter_auto/headunit/service/system_audio_service.dart';
 import 'package:flutter_auto/headunit/service/video_service.dart';
+import 'package:flutter_auto/headunit/service/voice_service.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
 import 'package:logging/logging.dart';
 
@@ -27,6 +30,54 @@ enum HeadunitSessionState {
   connected,
   disconnecting,
   failed,
+}
+
+enum StatusCode {
+  ok(0),
+  unsolicitedMessage(1),
+  noCompatibleVersion(-1),
+  certificateError(-2),
+  authenticationFailure(-3),
+  invalidService(-4),
+  invalidChannel(-5),
+  invalidPriority(-6),
+  internalError(-7),
+  mediaConfigMismatch(-8),
+  invalidSensor(-9),
+  bluetoothPairingDelayed(-10),
+  bluetoothUnavailable(-11),
+  bluetoothInvalidAddress(-12),
+  bluetoothInvalidPairingMethod(-13),
+  bluetoothInvalidAuthData(-14),
+  bluetoothAuthDataMismatch(-15),
+  bluetoothHfpAnotherConnection(-16),
+  bluetoothHfpConnectionFailure(-17),
+  keycodeNotBound(-18),
+  radioInvalidStation(-19),
+  invalidInput(-20),
+  radioStationPresetsNotSupported(-21),
+  radioCommError(-22),
+  certNotYetValid(-23),
+  certExpired(-24),
+  pingTimeout(-25),
+  carPropertySetFailed(-26),
+  carPropertyListenerFailed(-27),
+  commandNotSupported(-250),
+  framingError(-251),
+  unexpectedMessage(-253),
+  busy(-254),
+  outOfMemory(-255);
+
+  const StatusCode(this.value);
+
+  final int value;
+
+  static StatusCode? fromValue(int value) {
+    for (final status in StatusCode.values) {
+      if (status.value == value) return status;
+    }
+    return null;
+  }
 }
 
 class HeadunitSession {
@@ -59,6 +110,9 @@ class HeadunitSession {
   final sensorService = SensorService();
   final videoService = VideoService();
   final mediaAudioService = MediaAudioService();
+  final speechAudioService = SpeechAudioService();
+  final systemAudioService = SystemAudioService();
+  final microphoneInputService = MicrophoneInputService();
 
   HeadunitSessionState _state = HeadunitSessionState.disconnected;
   ProtocolConnection? _connection;
@@ -191,8 +245,9 @@ class HeadunitSession {
         router: messageRouter,
         sendControlPayload: sendControlPayload,
       );
+
       final Uint8List authProtobuf = AuthCompleteIndication(
-        status: 1,
+        status: StatusCode.ok.value,
       ).writeToBuffer();
 
       final Uint8List authPayload = Uint8List(2 + authProtobuf.length);
@@ -224,12 +279,27 @@ class HeadunitSession {
         channelId: MediaAudioService.defaultChannelId,
         buildDescriptor: mediaAudioService.buildDescriptor,
       );
+      serviceManager.registerService(
+        name: SpeechAudioService.serviceName,
+        channelId: SpeechAudioService.defaultChannelId,
+        buildDescriptor: speechAudioService.buildDescriptor,
+      );
 
-      serviceManager.start(); // Register the 0x0005 listener first.
-      await sendControlPayload(authPayload);
+      serviceManager.registerService(
+        name: SystemAudioService.serviceName,
+        channelId: SystemAudioService.defaultChannelId,
+        buildDescriptor: systemAudioService.buildDescriptor,
+      );
 
+      serviceManager.registerService(
+        name: MicrophoneInputService.serviceName,
+        channelId: MicrophoneInputService.defaultChannelId,
+        buildDescriptor: microphoneInputService.buildDescriptor,
+      );
       // Send 0x0006 immediately, advertising all registered services.
       final ServiceDiscoveryResponse response = await serviceManager.discover();
+      await sendControlPayload(authPayload);
+
       final phoneRequest = await serviceManager.waitForPhoneRequest();
       _log.info('Advertised ${response.channels.length} local channels.');
 

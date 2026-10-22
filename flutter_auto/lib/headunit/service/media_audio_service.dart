@@ -1,6 +1,7 @@
 import 'package:flutter_auto/generated/oaa/audio/AudioConfigData.pb.dart';
 import 'package:flutter_auto/generated/oaa/audio/AudioTypeEnum.pb.dart';
 import 'package:flutter_auto/generated/oaa/av/AVChannelData.pb.dart';
+import 'package:flutter_auto/generated/oaa/av/MediaCodecTypeEnum.pbenum.dart';
 import 'package:flutter_auto/generated/oaa/control/ChannelDescriptorData.pb.dart';
 
 class MediaAudioService {
@@ -11,6 +12,7 @@ class MediaAudioService {
     return ChannelDescriptor()
       ..channelId = channelId
       ..avChannel = (AVChannel()
+        ..streamType = MediaCodecType_Enum.MEDIA_CODEC_AUDIO_PCM
         ..audioType = AudioType_Enum.MEDIA
         ..audioConfigs.add(
           AudioConfig()
