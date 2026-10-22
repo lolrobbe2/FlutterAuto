@@ -1,4 +1,3 @@
-import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter_auto/headunit/headunit_session.dart';
@@ -11,9 +10,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
 final Logger _log = Logger('AndroidAutoIntegrationTest');
-
+//flutter test test/headunit/headunit_adb_test.dart --dart-define=RUN_ADB_INTEGRATION=true --plain-name "Android Auto head unit session connects over ADB"
 void main() {
-  const bool runAdbIntegration = bool.fromEnvironment('RUN_ADB_INTEGRATION');
+  const bool runAdbIntegration = bool.fromEnvironment(
+    'RUN_ADB_INTEGRATION',
+    defaultValue: true,
+  );
 
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -26,13 +28,20 @@ void main() {
           '$timestamp ${record.level.name} '
           '[${record.loggerName}] ${record.message}';
 
-      developer.log(
-        message,
-        name: record.loggerName,
-        level: record.level.value,
-        error: record.error,
-        stackTrace: record.stackTrace,
-      );
+      // Print directly to the test runner's output.
+      // Include error and stack trace when present.
+      // ignore: avoid_print
+      print(message);
+
+      if (record.error != null) {
+        // ignore: avoid_print
+        print('Error: ${record.error}');
+      }
+
+      if (record.stackTrace != null) {
+        // ignore: avoid_print
+        print(record.stackTrace);
+      }
     });
   });
 

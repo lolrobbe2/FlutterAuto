@@ -21,8 +21,6 @@ class ProtocolFrame {
   final MessageType messageType;
   final EncryptionType encryptionType;
   final Uint8List payload;
-
-  /// Present on FIRST frames; represents the complete logical message size.
   final int? totalMessageSize;
 
   int get headerSize => frameType == FrameType.first ? 8 : 4;
@@ -39,7 +37,6 @@ class ProtocolFrame {
 
     result[0] = channel;
     result[1] = flags;
-
     data.setUint16(2, payload.length, Endian.big);
 
     if (frameType == FrameType.first) {
@@ -47,23 +44,28 @@ class ProtocolFrame {
     }
 
     result.setRange(headerSize, result.length, payload);
-
     return result;
   }
 
-  static ProtocolFrame decode(Uint8List bytes) {
+  static ProtocolFrame decode(
+    Uint8List bytes, {
+    MessageType messageType = MessageType.specific,
+  }) {
     if (bytes.length < 4) {
       throw const FormatException('Frame header requires at least 4 bytes.');
     }
 
     final ByteData data = ByteData.sublistView(bytes);
     final int flags = bytes[1];
-
     final int rawFrameType = flags & 0x03;
-    final MessageType messageType = bytes[0] == 0
-        ? MessageType.control
-        : MessageType.specific;
     final int rawEncryptionType = (flags >> 3) & 0x01;
+
+    if (rawFrameType >= FrameType.values.length) {
+      throw FormatException('Invalid frame type: $rawFrameType.');
+    }
+    if (rawEncryptionType >= EncryptionType.values.length) {
+      throw FormatException('Invalid encryption type: $rawEncryptionType.');
+    }
 
     final FrameType frameType = FrameType.values[rawFrameType];
     final int headerSize = frameType == FrameType.first ? 8 : 4;
@@ -84,19 +86,16 @@ class ProtocolFrame {
       );
     }
 
-    final Uint8List payload = Uint8List.fromList(bytes.sublist(headerSize));
-
     final ProtocolFrame frame = ProtocolFrame(
       channel: bytes[0],
       frameType: frameType,
       messageType: messageType,
       encryptionType: EncryptionType.values[rawEncryptionType],
-      payload: payload,
+      payload: Uint8List.fromList(bytes.sublist(headerSize)),
       totalMessageSize: totalMessageSize,
     );
 
     frame._validate();
-
     return frame;
   }
 
@@ -115,24 +114,16 @@ class ProtocolFrame {
 
     if (frameType == FrameType.first) {
       if (totalMessageSize == null ||
-          totalMessageSize! < payload.length ||
+          totalMessageSize! <= payload.length ||
           totalMessageSize! > 0xFFFFFFFF) {
-        throw ArgumentError('FIRST frames require a valid totalMessageSize.');
+        throw ArgumentError(
+          'FIRST frames require totalMessageSize greater than payload length.',
+        );
       }
     } else if (totalMessageSize != null) {
       throw ArgumentError('Only FIRST frames may specify totalMessageSize.');
     }
 
-    if (channel == 0 && messageType != MessageType.control) {
-      throw ArgumentError(
-        'The control channel (0) must use CONTROL message type.',
-      );
-    }
-
-    if (channel != 0 && messageType != MessageType.specific) {
-      throw ArgumentError(
-        'Non-control channels must use SPECIFIC message type.',
-      );
-    }
+   
   }
 }

@@ -51,7 +51,7 @@ void main() {
           receivedBytes.sublist(0, frameLength),
         );
 
-        requestCompleter.complete(ProtocolFrame.decode(frameBytes));
+        requestCompleter.complete(ProtocolFrame.decode(frameBytes, messageType: MessageType.control));
       }
     });
   });

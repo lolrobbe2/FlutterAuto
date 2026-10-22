@@ -1,13 +1,15 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:logging/logging.dart';
 
 import 'message_assembler.dart';
 import 'protocol_frame.dart';
 import 'protocol_message.dart';
 
 class ProtocolConnection {
+  static final Logger _log = Logger('ProtocolConnection');
   ProtocolConnection(Socket socket) : _socket = socket {
     _subscription = _socket.listen(
       _onData,
@@ -53,8 +55,7 @@ class ProtocolConnection {
       return;
     }
 
-    developer.log('AA RX: ${_formatHex(data)}', name: 'ProtocolConnection');
-
+    _log.fine('AA RX: ${_formatHex(data)}');
     _appendData(data);
 
     try {
@@ -106,8 +107,10 @@ class ProtocolConnection {
         _buffer.sublist(offset, offset + frameLength),
       );
 
-      final ProtocolFrame frame = ProtocolFrame.decode(frameBytes);
-
+      final ProtocolFrame frame = ProtocolFrame.decode(
+        frameBytes,
+        messageType: MessageType.control,
+      );
       _frameController.add(frame);
       offset += frameLength;
     }
@@ -124,10 +127,7 @@ class ProtocolConnection {
 
     final Uint8List encoded = frame.encode();
 
-    developer.log(
-      'AA TX (${encoded.length} bytes): ${_formatHex(encoded)}',
-      name: 'ProtocolConnection',
-    );
+    _log.fine('AA TX (${encoded.length} bytes): ${_formatHex(encoded)}');
 
     _socket.add(encoded);
     await _socket.flush();
@@ -138,7 +138,7 @@ class ProtocolConnection {
   }
 
   void _onDone() {
-    developer.log('AA TCP: remote socket closed', name: 'ProtocolConnection');
+    _log.info('AA TCP: remote socket closed');
     _finish();
   }
 
@@ -147,13 +147,7 @@ class ProtocolConnection {
       return;
     }
 
-    developer.log(
-      'Protocol connection failed',
-      name: 'ProtocolConnection',
-      error: error,
-      stackTrace: stackTrace,
-      level: 1000,
-    );
+    _log.severe('Protocol connection failed', error, stackTrace);
 
     if (!_frameController.isClosed) {
       _frameController.addError(error, stackTrace);

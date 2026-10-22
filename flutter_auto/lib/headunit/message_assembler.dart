@@ -7,6 +7,7 @@ import 'protocol_message.dart';
 class MessageAssembler {
   const MessageAssembler();
 
+
   Stream<ProtocolMessage> bind(Stream<ProtocolFrame> frames) async* {
     final Map<int, _PendingMessage> pendingMessages = <int, _PendingMessage>{};
 

@@ -1,11 +1,21 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter_auto/generated/oaa/control/AuthCompleteIndicationMessage.pb.dart';
+import 'package:flutter_auto/generated/oaa/control/ServiceDiscoveryResponseMessage.pb.dart';
 import 'package:flutter_auto/headunit/message_router.dart';
+import 'package:flutter_auto/headunit/protocol_frame.dart';
 import 'package:flutter_auto/headunit/security/android_auto_tls_client.dart';
 import 'package:flutter_auto/headunit/security/head_unit_identity.dart';
 import 'package:flutter_auto/headunit/security/ssl_handshake_transport.dart';
+import 'package:flutter_auto/headunit/service/input_service.dart';
+import 'package:flutter_auto/headunit/service/media_audio_service.dart';
+import 'package:flutter_auto/headunit/service/sensor_service.dart';
+import 'package:flutter_auto/headunit/service/service_manager.dart';
+import 'package:flutter_auto/headunit/service/video_service.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
+import 'package:logging/logging.dart';
 
 import 'protocol_connection.dart';
 import 'version_handshake.dart';
@@ -20,6 +30,7 @@ enum HeadunitSessionState {
 }
 
 class HeadunitSession {
+  final Logger _log = Logger('HeadunitSession');
   HeadunitSession({
     required this.adbManager,
     HeadUnitIdentity? identity,
@@ -44,10 +55,16 @@ class HeadunitSession {
   final StreamController<HeadunitSessionState> _stateController =
       StreamController<HeadunitSessionState>.broadcast();
 
+  final inputService = InputService();
+  final sensorService = SensorService();
+  final videoService = VideoService();
+  final mediaAudioService = MediaAudioService();
+
   HeadunitSessionState _state = HeadunitSessionState.disconnected;
   ProtocolConnection? _connection;
   AndroidAutoTlsClient? _tlsClient;
   MessageRouter? _router;
+  ServiceManager? _serviceManager;
 
   Future<void>? _disconnectFuture;
   bool _disposed = false;
@@ -57,8 +74,8 @@ class HeadunitSession {
   Stream<HeadunitSessionState> get states => _stateController.stream;
 
   ProtocolConnection? get connection => _connection;
-
   MessageRouter? get router => _router;
+  ServiceManager? get serviceManager => _serviceManager;
 
   bool get isConnected => _state == HeadunitSessionState.connected;
 
@@ -147,6 +164,74 @@ class HeadunitSession {
           'The protocol connection closed during TLS negotiation.',
         );
       }
+
+      messageRouter.setApplicationDecryptor(tlsClient.decryptApplicationData);
+      Future<void> sendControlPayload(Uint8List payload) async {
+        if (!tlsClient.isConnected || protocolConnection.isClosed) {
+          throw StateError(
+            'Cannot send application data: the connection is not ready.',
+          );
+        }
+
+        final Uint8List encryptedPayload = await tlsClient
+            .encryptApplicationData(payload);
+
+        await protocolConnection.send(
+          ProtocolFrame(
+            channel: 0,
+            frameType: FrameType.bulk,
+            messageType: MessageType.control,
+            encryptionType: EncryptionType.encrypted,
+            payload: encryptedPayload,
+          ),
+        );
+      }
+
+      final ServiceManager serviceManager = ServiceManager(
+        router: messageRouter,
+        sendControlPayload: sendControlPayload,
+      );
+      final Uint8List authProtobuf = AuthCompleteIndication(
+        status: 1,
+      ).writeToBuffer();
+
+      final Uint8List authPayload = Uint8List(2 + authProtobuf.length);
+      ByteData.sublistView(authPayload).setUint16(0, 0x0004, Endian.big);
+      authPayload.setRange(2, authPayload.length, authProtobuf);
+
+      // Send through the existing TLS-protected control-message path.
+      _serviceManager = serviceManager;
+      serviceManager.registerService(
+        name: InputService.serviceName,
+        channelId: InputService.defaultChannelId,
+        buildDescriptor: inputService.buildDescriptor,
+      );
+
+      serviceManager.registerService(
+        name: SensorService.serviceName,
+        channelId: SensorService.defaultChannelId,
+        buildDescriptor: sensorService.buildDescriptor,
+      );
+
+      serviceManager.registerService(
+        name: VideoService.serviceName,
+        channelId: VideoService.defaultChannelId,
+        buildDescriptor: videoService.buildDescriptor,
+      );
+
+      serviceManager.registerService(
+        name: MediaAudioService.serviceName,
+        channelId: MediaAudioService.defaultChannelId,
+        buildDescriptor: mediaAudioService.buildDescriptor,
+      );
+
+      serviceManager.start(); // Register the 0x0005 listener first.
+      await sendControlPayload(authPayload);
+
+      // Send 0x0006 immediately, advertising all registered services.
+      final ServiceDiscoveryResponse response = await serviceManager.discover();
+      final phoneRequest = await serviceManager.waitForPhoneRequest();
+      _log.info('Advertised ${response.channels.length} local channels.');
 
       _setState(HeadunitSessionState.connected);
       return result;

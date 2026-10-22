@@ -37,6 +37,7 @@ class AndroidAutoTlsClient {
   bool _started = false;
   bool _connected = false;
   bool _closed = false;
+  bool _connectCalled = false;
 
   bool get isConnected => _connected;
 
@@ -47,6 +48,7 @@ class AndroidAutoTlsClient {
     }
 
     _started = true;
+    _connectCalled = true;
 
     try {
       await _initialize();
@@ -394,6 +396,182 @@ class AndroidAutoTlsClient {
     );
   }
 
+  /// Encrypts plaintext into TLS records and returns the resulting bytes.
+  ///
+  /// Does not send the returned bytes over the Android Auto connection.
+  Future<Uint8List> encryptApplicationData(Uint8List plaintext) async {
+    if (!_connected || _closed || _ssl == nullptr) {
+      throw StateError('TLS is not connected.');
+    }
+
+    final Completer<Uint8List> completer = Completer<Uint8List>();
+
+    _enqueue(() async {
+      try {
+        if (!_connected || _closed || _ssl == nullptr) {
+          throw StateError('TLS connection is closed.');
+        }
+
+        _sslWriteApplicationData(plaintext);
+
+        // Drain the BIO directly. Do not call _flushOutgoing() here,
+        // because that method sends the bytes through SSL_HANDSHAKE.
+        completer.complete(_drainWriteBio());
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+        rethrow;
+      }
+    });
+
+    return completer.future;
+  }
+
+  /// Decrypts incoming TLS records into application data.
+  ///
+  /// The caller must supply only the TLS bytes belonging to this
+  /// application's encrypted payload.
+  Future<Uint8List> decryptApplicationData(Uint8List encrypted) async {
+    if (!_connected || _closed || _ssl == nullptr) {
+      throw StateError('TLS is not connected.');
+    }
+
+    final Completer<Uint8List> completer = Completer<Uint8List>();
+
+    _enqueue(() async {
+      try {
+        if (!_connected || _closed || _ssl == nullptr) {
+          throw StateError('TLS connection is closed.');
+        }
+
+        _writeToBio(_readBio, encrypted);
+        final Uint8List plaintext = _sslReadAvailable();
+        await _flushOutgoing();
+
+        completer.complete(plaintext);
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+        rethrow;
+      }
+    });
+
+    return completer.future;
+  }
+
+  Uint8List _sslWriteApplicationData(Uint8List plaintext) {
+    if (plaintext.isEmpty) {
+      return Uint8List(0);
+    }
+
+    final Pointer<Uint8> buffer = calloc<Uint8>(plaintext.length);
+
+    try {
+      buffer.asTypedList(plaintext.length).setAll(0, plaintext);
+
+      final int written = _openSsl
+          .lookup<Int Function(Pointer<openssl.SSL>, Pointer<Void>, Int)>(
+            'SSL_write',
+          )
+          .asFunction<
+            int Function(Pointer<openssl.SSL>, Pointer<Void>, int)
+          >()(_ssl, buffer.cast<Void>(), plaintext.length);
+
+      if (written <= 0) {
+        final int error = _getSslError(_ssl, written);
+        throw StateError(
+          'SSL_write failed (SSL_get_error=$error, result=$written).',
+        );
+      }
+
+      if (written != plaintext.length) {
+        throw StateError(
+          'SSL_write wrote $written of ${plaintext.length} bytes.',
+        );
+      }
+
+      return Uint8List.fromList(plaintext);
+    } finally {
+      calloc.free(buffer);
+    }
+  }
+
+  Uint8List _sslReadAvailable() {
+    const int sslErrorWantRead = 2;
+    const int sslErrorWantWrite = 3;
+    const int sslErrorZeroReturn = 6;
+
+    final BytesBuilder output = BytesBuilder(copy: false);
+
+    for (int attempt = 0; attempt < 32; attempt++) {
+      const int chunkSize = 16384;
+      final Pointer<Uint8> buffer = calloc<Uint8>(chunkSize);
+
+      try {
+        final int read = _openSsl
+            .lookup<Int Function(Pointer<openssl.SSL>, Pointer<Void>, Int)>(
+              'SSL_read',
+            )
+            .asFunction<
+              int Function(Pointer<openssl.SSL>, Pointer<Void>, int)
+            >()(_ssl, buffer.cast<Void>(), chunkSize);
+
+        if (read > 0) {
+          output.add(Uint8List.fromList(buffer.asTypedList(read)));
+          continue;
+        }
+
+        final int error = _getSslError(_ssl, read);
+
+        if (error == sslErrorWantRead || error == sslErrorZeroReturn) {
+          return output.takeBytes();
+        }
+
+        if (error == sslErrorWantWrite) {
+          // The caller flushes pending TLS output after this operation.
+          return output.takeBytes();
+        }
+
+        throw StateError(
+          'SSL_read failed (SSL_get_error=$error, result=$read).',
+        );
+      } finally {
+        calloc.free(buffer);
+      }
+    }
+
+    throw StateError('SSL_read exceeded the retry limit.');
+  }
+
+  Uint8List _drainWriteBio() {
+    const int bioCtrlPending = 10;
+    final BytesBuilder output = BytesBuilder(copy: false);
+    final openssl.OpenSslFfi ffi = _openSsl.bindings;
+
+    while (true) {
+      final int pending = ffi.BIO_ctrl(_writeBio, bioCtrlPending, 0, nullptr);
+
+      if (pending <= 0) {
+        return output.takeBytes();
+      }
+
+      final int length = pending > 16384 ? 16384 : pending;
+      final Pointer<Uint8> buffer = calloc<Uint8>(length);
+
+      try {
+        final int read = ffi.BIO_read(_writeBio, buffer.cast(), length);
+
+        if (read <= 0) {
+          throw StateError('Failed to drain the TLS write BIO.');
+        }
+
+        output.add(Uint8List.fromList(buffer.asTypedList(read)));
+      } finally {
+        calloc.free(buffer);
+      }
+    }
+  }
+
   void _setBio(
     Pointer<openssl.SSL> ssl,
     Pointer<openssl.BIO> readBio,
@@ -478,7 +656,7 @@ class AndroidAutoTlsClient {
       _context = nullptr;
     }
 
-    if (!_handshakeCompleter.isCompleted) {
+    if (_connectCalled && !_handshakeCompleter.isCompleted) {
       _handshakeCompleter.completeError(
         StateError('TLS handshake was closed before completion.'),
       );
