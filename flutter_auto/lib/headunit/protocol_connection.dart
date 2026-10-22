@@ -9,6 +9,14 @@ import 'protocol_frame.dart';
 import 'protocol_message.dart';
 
 class ProtocolConnection {
+  void setFramePayloadDecryptor(FramePayloadDecryptor? decryptor) {
+    if (_isClosed) {
+      throw StateError('Cannot configure a closed protocol connection.');
+    }
+
+    _framePayloadDecryptor = decryptor;
+  }
+
   static final Logger _log = Logger('ProtocolConnection');
   ProtocolConnection(Socket socket) : _socket = socket {
     _subscription = _socket.listen(
@@ -28,8 +36,21 @@ class ProtocolConnection {
 
   late final StreamSubscription<List<int>> _subscription;
 
+  FramePayloadDecryptor? _framePayloadDecryptor;
+
   late final Stream<ProtocolMessage> _messages = const MessageAssembler().bind(
     _frameController.stream,
+    decryptEncryptedPayload: (Uint8List payload) async {
+      final decryptor = _framePayloadDecryptor;
+
+      if (decryptor == null) {
+        throw StateError(
+          'Encrypted frame received before TLS decryption was configured.',
+        );
+      }
+
+      return decryptor(payload);
+    },
   );
 
   Uint8List _buffer = Uint8List(0);
@@ -107,9 +128,7 @@ class ProtocolConnection {
         _buffer.sublist(offset, offset + frameLength),
       );
 
-      final ProtocolFrame frame = ProtocolFrame.decode(
-        frameBytes,
-      );
+      final ProtocolFrame frame = ProtocolFrame.decode(frameBytes);
       _frameController.add(frame);
       offset += frameLength;
     }

@@ -1,3 +1,4 @@
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -5,15 +6,14 @@ import 'package:flutter_auto/headunit/headunit_session.dart';
 import 'package:flutter_auto/screens/adb_terminal_screen.dart';
 import 'package:flutter_auto/screens/headunit_screen.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
-import 'package:flutter_auto/screens/ffmpeg_video_view.dart';
-
-// Replace this import with the actual path to your AdbManager file.
+import 'package:flutter_auto/headunit/video/ffmpeg_video_view.dart';
 
 class DeviceSelectionScreen extends StatefulWidget {
   const DeviceSelectionScreen({super.key});
 
   @override
-  State<DeviceSelectionScreen> createState() => _DeviceSelectionScreenState();
+  State<DeviceSelectionScreen> createState() =>
+      _DeviceSelectionScreenState();
 }
 
 class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
@@ -53,13 +53,10 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
     Object? connectionError;
 
     try {
-      // Forward the selected Android device's port to this computer.
       await _connectAndForward(device.serial);
 
       if (!mounted) return;
 
-      // Forwarding was configured for the selected serial above,
-      // so the session must not configure ADB forwarding again.
       session = HeadunitSession(
         adbManager: _adbManager,
         host: InternetAddress.loopbackIPv4.address,
@@ -67,8 +64,6 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
         configureAdb: false,
       );
 
-      // Start connecting before navigating so the screen receives
-      // live session-state changes from the same instance.
       connectionTask = session.connect().then<void>(
         (_) {},
         onError: (Object error, StackTrace stackTrace) {
@@ -81,15 +76,17 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
           builder: (context) => HeadunitServerScreen(
             deviceSerial: device.serial,
             session: session!,
-            videoBuilder: (context, videoService) {
-              return FfmpegVideoView(videoService: videoService);
+            videoBuilder: (context, decoder) {
+              // The decoder belongs to HeadunitServerScreen.
+              // This view only renders frames and must not dispose it.
+              return FfmpegVideoView(
+                decoder: decoder,
+              );
             },
           ),
         ),
       );
 
-      // Make sure the connection operation has finished before disposing
-      // the session. Its error has already been captured above.
       await connectionTask;
 
       if (connectionError != null && mounted) {
@@ -104,7 +101,6 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
         });
       }
     } finally {
-      // Wait for an in-flight connection attempt before cleanup.
       if (connectionTask != null) {
         await connectionTask;
       }
@@ -145,14 +141,11 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
     try {
       final List<AdbDevice> devices = await _adbManager.listDevices();
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         _devices = devices;
 
-        // Keep the current selection if the device is still connected.
         if (!_devices.any(
           (AdbDevice device) => device.serial == _selectedSerial,
         )) {
@@ -160,9 +153,7 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
         }
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         _errorMessage = error.toString();
@@ -179,9 +170,7 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
   Future<void> _connectToDevice() async {
     final String? serial = _selectedSerial;
 
-    if (serial == null) {
-      return;
-    }
+    if (serial == null) return;
 
     final AdbDevice selectedDevice = _devices.firstWhere(
       (AdbDevice device) => device.serial == serial,
@@ -204,20 +193,55 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
     try {
       await _connectAndForward(serial);
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (BuildContext context) =>
-              AdbTerminalScreen(adbManager: _adbManager, deviceSerial: serial),
+          builder: (BuildContext context) => AdbTerminalScreen(
+            adbManager: _adbManager,
+            deviceSerial: serial,
+          ),
         ),
       );
     } catch (error) {
-      if (!mounted) {
-        return;
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+        });
       }
+    }
+  }
+
+  Future<void> _connectToDeviceFromCard(AdbDevice device) async {
+    if (!device.isAuthorized || _isConnecting) return;
+
+    setState(() {
+      _selectedSerial = device.serial;
+      _errorMessage = null;
+      _isConnecting = true;
+    });
+
+    try {
+      await _connectAndForward(device.serial);
+
+      if (!mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => AdbTerminalScreen(
+            adbManager: _adbManager,
+            deviceSerial: device.serial,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
 
       setState(() {
         _errorMessage = error.toString();
@@ -276,154 +300,135 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
               ),
             Expanded(
               child: _isLoading && _devices.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: CircularProgressIndicator(),
+                    )
                   : _devices.isEmpty
-                  ? const Center(child: Text('No ADB devices found.'))
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _devices.length,
-                      separatorBuilder: (BuildContext context, int index) {
-                        return const SizedBox(height: 8);
-                      },
-                      itemBuilder: (BuildContext context, int index) {
-                        final AdbDevice device = _devices[index];
-                        final bool isSelected =
-                            device.serial == _selectedSerial;
+                      ? const Center(
+                          child: Text('No ADB devices found.'),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _devices.length,
+                          separatorBuilder: (
+                            BuildContext context,
+                            int index,
+                          ) {
+                            return const SizedBox(height: 8);
+                          },
+                          itemBuilder: (
+                            BuildContext context,
+                            int index,
+                          ) {
+                            final AdbDevice device = _devices[index];
+                            final bool isSelected =
+                                device.serial == _selectedSerial;
 
-                        return Card(
-                          clipBehavior: Clip.antiAlias,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(
-                                    Icons.smartphone,
-                                    color: device.isAuthorized
-                                        ? colors.primary
-                                        : colors.error,
-                                  ),
-                                  title: Text(device.serial),
-                                  subtitle: Text(
-                                    device.isAuthorized
-                                        ? 'Authorized'
-                                        : device.state,
-                                  ),
-                                  trailing: isSelected
-                                      ? Icon(
-                                          Icons.check_circle,
-                                          color: colors.primary,
-                                        )
-                                      : const Icon(Icons.chevron_right),
-                                  selected: isSelected,
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedSerial = device.serial;
-                                      _errorMessage = null;
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
+                            return Card(
+                              clipBehavior: Clip.antiAlias,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: <Widget>[
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed:
-                                            device.isAuthorized &&
-                                                !_isConnecting
-                                            ? () async {
-                                                setState(() {
-                                                  _selectedSerial =
-                                                      device.serial;
-                                                  _errorMessage = null;
-                                                  _isConnecting = true;
-                                                });
-
-                                                try {
-                                                  await _connectAndForward(
-                                                    device.serial,
-                                                  );
-
-                                                  if (!mounted) {
-                                                    return;
-                                                  }
-
-                                                  await Navigator.of(
-                                                    context,
-                                                  ).push(
-                                                    MaterialPageRoute<void>(
-                                                      builder:
-                                                          (
-                                                            BuildContext
-                                                            context,
-                                                          ) =>
-                                                              AdbTerminalScreen(
-                                                                adbManager:
-                                                                    _adbManager,
-                                                                deviceSerial:
-                                                                    device
-                                                                        .serial,
-                                                              ),
-                                                    ),
-                                                  );
-                                                } catch (error) {
-                                                  if (mounted) {
-                                                    setState(() {
-                                                      _errorMessage = error
-                                                          .toString();
-                                                    });
-                                                  }
-                                                } finally {
-                                                  if (mounted) {
-                                                    setState(() {
-                                                      _isConnecting = false;
-                                                    });
-                                                  }
-                                                }
-                                              }
-                                            : null,
-                                        icon: const Icon(Icons.terminal),
-                                        label: const Text('Connect'),
+                                    ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: Icon(
+                                        Icons.smartphone,
+                                        color: device.isAuthorized
+                                            ? colors.primary
+                                            : colors.error,
                                       ),
+                                      title: Text(device.serial),
+                                      subtitle: Text(
+                                        device.isAuthorized
+                                            ? 'Authorized'
+                                            : device.state,
+                                      ),
+                                      trailing: isSelected
+                                          ? Icon(
+                                              Icons.check_circle,
+                                              color: colors.primary,
+                                            )
+                                          : const Icon(
+                                              Icons.chevron_right,
+                                            ),
+                                      selected: isSelected,
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedSerial = device.serial;
+                                          _errorMessage = null;
+                                        });
+                                      },
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: FilledButton.tonalIcon(
-                                        onPressed:
-                                            device.isAuthorized &&
-                                                !_isConnecting
-                                            ? () => _startHeadunitServer(device)
-                                            : null,
-                                        icon: const Icon(Icons.directions_car),
-                                        label: const Text('Start Head Unit'),
-                                      ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed:
+                                                device.isAuthorized &&
+                                                        !_isConnecting
+                                                    ? () =>
+                                                        _connectToDeviceFromCard(
+                                                          device,
+                                                        )
+                                                    : null,
+                                            icon: const Icon(
+                                              Icons.terminal,
+                                            ),
+                                            label: const Text('Connect'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: FilledButton.tonalIcon(
+                                            onPressed:
+                                                device.isAuthorized &&
+                                                        !_isConnecting
+                                                    ? () =>
+                                                        _startHeadunitServer(
+                                                          device,
+                                                        )
+                                                    : null,
+                                            icon: const Icon(
+                                              Icons.directions_car,
+                                            ),
+                                            label: const Text(
+                                              'Start Head Unit',
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                              ),
+                            );
+                          },
+                        ),
             ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: FilledButton.icon(
-                onPressed:
-                    _selectedSerial == null || _isConnecting || _isLoading
+                onPressed: _selectedSerial == null ||
+                        _isConnecting ||
+                        _isLoading
                     ? null
                     : _connectToDevice,
                 icon: _isConnecting
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
                       )
                     : const Icon(Icons.link),
-                label: Text(_isConnecting ? 'Connecting...' : 'Connect'),
+                label: Text(
+                  _isConnecting ? 'Connecting...' : 'Connect',
+                ),
               ),
             ),
           ],

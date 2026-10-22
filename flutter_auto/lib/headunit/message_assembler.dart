@@ -4,14 +4,45 @@ import 'dart:typed_data';
 import 'protocol_frame.dart';
 import 'protocol_message.dart';
 
+typedef FramePayloadDecryptor = Future<Uint8List> Function(Uint8List payload);
+
 class MessageAssembler {
   const MessageAssembler();
 
-
-  Stream<ProtocolMessage> bind(Stream<ProtocolFrame> frames) async* {
+  Stream<ProtocolMessage> bind(
+    Stream<ProtocolFrame> frames, {
+    FramePayloadDecryptor? decryptEncryptedPayload,
+  }) async* {
     final Map<int, _PendingMessage> pendingMessages = <int, _PendingMessage>{};
 
-    await for (final ProtocolFrame frame in frames) {
+    await for (final ProtocolFrame wireFrame in frames) {
+      ProtocolFrame frame = wireFrame;
+
+      // Decrypt each encrypted frame before reassembling the logical message.
+      if (wireFrame.encryptionType == EncryptionType.encrypted) {
+        final decryptor = decryptEncryptedPayload;
+
+        if (decryptor == null) {
+          throw StateError(
+            'Received an encrypted frame before the TLS decryptor '
+            'was configured.',
+          );
+        }
+
+        final Uint8List plaintext = await decryptor(
+          Uint8List.fromList(wireFrame.payload),
+        );
+
+        frame = ProtocolFrame(
+          channel: wireFrame.channel,
+          frameType: wireFrame.frameType,
+          messageType: wireFrame.messageType,
+          encryptionType: wireFrame.encryptionType,
+          payload: plaintext,
+          totalMessageSize: wireFrame.totalMessageSize,
+        );
+      }
+
       final int channel = frame.channel;
 
       switch (frame.frameType) {
@@ -63,7 +94,7 @@ class MessageAssembler {
           break;
 
         case FrameType.middle:
-          final _PendingMessage? pending = pendingMessages[channel];
+          final pending = pendingMessages[channel];
 
           if (pending == null) {
             throw FormatException(
@@ -87,7 +118,7 @@ class MessageAssembler {
           break;
 
         case FrameType.last:
-          final _PendingMessage? pending = pendingMessages[channel];
+          final pending = pendingMessages[channel];
 
           if (pending == null) {
             throw FormatException(
@@ -116,6 +147,7 @@ class MessageAssembler {
             encryptionType: pending.encryptionType,
             payload: pending.payload.takeBytes(),
           );
+          break;
       }
     }
 

@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:io';
 
@@ -167,10 +166,7 @@ class HeadunitSession {
 
       // Registry and channel 0 control service are created before
       // version negotiation so every inbound message uses the same route.
-      final registry = ChannelServiceRegistry(
-        router: router,
-        sender: sender,
-      );
+      final registry = ChannelServiceRegistry(router: router, sender: sender);
 
       final controlService = ControlService(registry: registry);
 
@@ -249,7 +245,7 @@ class HeadunitSession {
         transport: tlsTransport,
         identityStore: identity,
       );
-
+      router.setApplicationDecryptor(tlsClient.decryptApplicationData);
       _tlsClient = tlsClient;
 
       // SSL_HANDSHAKE messages travel through ControlService.
@@ -262,13 +258,9 @@ class HeadunitSession {
       }
 
       // Encryption is enabled only after the TLS handshake completes.
-      sender.setApplicationEncryptor(
-        tlsClient.encryptApplicationData,
-      );
+      sender.setApplicationEncryptor(tlsClient.encryptApplicationData);
 
-      router.setApplicationDecryptor(
-        tlsClient.decryptApplicationData,
-      );
+      router.setApplicationDecryptor(tlsClient.decryptApplicationData);
 
       // ControlService chooses the required framing for AUTH_COMPLETE:
       // message ID 0x0004, plaintext, MessageType.specific.
@@ -297,15 +289,9 @@ class HeadunitSession {
       _setState(HeadunitSessionState.connected);
       return versionResult;
     } catch (error, stackTrace) {
-      _log.severe(
-        'Headunit session connection failed.',
-        error,
-        stackTrace,
-      );
+      _log.severe('Headunit session connection failed.', error, stackTrace);
 
-      await _cleanupConnection(
-        failedState: HeadunitSessionState.failed,
-      );
+      await _cleanupConnection(failedState: HeadunitSessionState.failed);
 
       rethrow;
     }
@@ -376,9 +362,7 @@ class HeadunitSession {
     _setState(HeadunitSessionState.disconnecting);
 
     try {
-      await _cleanupConnection(
-        failedState: HeadunitSessionState.disconnected,
-      );
+      await _cleanupConnection(failedState: HeadunitSessionState.disconnected);
     } finally {
       _disconnectFuture = null;
     }

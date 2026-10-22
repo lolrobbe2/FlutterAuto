@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_auto/headunit/headunit_session.dart';
 import 'package:flutter_auto/headunit/service/video_service.dart';
+import 'package:flutter_auto/headunit/video/ffmpeg_h264_decoder.dart';
+import 'package:logging/logging.dart';
 
 class HeadunitServerScreen extends StatefulWidget {
   const HeadunitServerScreen({
@@ -15,10 +18,13 @@ class HeadunitServerScreen extends StatefulWidget {
   final String deviceSerial;
   final HeadunitSession session;
 
-  /// Supply a decoder/rendering widget here when the H.264 decoder is ready.
-  /// It can subscribe to [VideoService.videoPackets].
-  final Widget Function(BuildContext context, VideoService videoService)?
-      videoBuilder;
+  /// Builds a rendering view using the screen-owned decoder.
+  ///
+  /// The returned widget must not start or dispose the decoder.
+  final Widget Function(
+    BuildContext context,
+    FfmpegH264Decoder decoder,
+  )? videoBuilder;
 
   @override
   State<HeadunitServerScreen> createState() =>
@@ -26,16 +32,23 @@ class HeadunitServerScreen extends StatefulWidget {
 }
 
 class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
+  final Logger _log = Logger('HeadunitServerScreen');
+
   StreamSubscription<HeadunitSessionState>? _sessionSubscription;
   StreamSubscription<VideoMediaPacket>? _videoSubscription;
 
   late HeadunitSessionState _sessionState;
+  late FfmpegH264Decoder _decoder;
+
+  bool _isFullscreen = false;
 
   int _packetCount = 0;
   int _totalBytes = 0;
   int? _lastMessageId;
   DateTime? _lastPacketAt;
+
   String? _videoError;
+  String? _decoderError;
 
   VideoService get _video => widget.session.videoService;
 
@@ -45,35 +58,72 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
 
     _sessionState = widget.session.state;
 
-    _sessionSubscription = widget.session.states.listen((state) {
-      if (!mounted) return;
-      setState(() => _sessionState = state);
-    });
+    // The screen owns the decoder, not the rendering widget.
+    _decoder = _createDecoder();
 
-    _subscribeToVideo(widget.session.videoService);
+    unawaited(_startDecoder(_decoder, _video));
+
+    _subscribeToSession(widget.session);
+    _subscribeToVideo(_video);
   }
 
-  @override
-  void didUpdateWidget(covariant HeadunitServerScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
+  FfmpegH264Decoder _createDecoder() {
+    return FfmpegH264Decoder(
+      width: 800,
+      height: 480,
+    );
+  }
 
-    if (oldWidget.session != widget.session) {
-      _sessionSubscription?.cancel();
-      _videoSubscription?.cancel();
+  Future<void> _startDecoder(
+    FfmpegH264Decoder decoder,
+    VideoService service,
+  ) async {
+    _log.info(
+      'Starting screen-owned decoder: '
+      'decoder=${identityHashCode(decoder)}, '
+      'service=${identityHashCode(service)}.',
+    );
 
-      _sessionState = widget.session.state;
-      _packetCount = 0;
-      _totalBytes = 0;
-      _lastMessageId = null;
-      _lastPacketAt = null;
+    try {
+      await decoder.start(service);
 
-      _sessionSubscription = widget.session.states.listen((state) {
-        if (!mounted) return;
-        setState(() => _sessionState = state);
+      _log.info(
+        'Screen-owned decoder started: '
+        'decoder=${identityHashCode(decoder)}.',
+      );
+
+      if (!mounted || !identical(_decoder, decoder)) {
+        return;
+      }
+
+      setState(() {
+        _decoderError = null;
       });
+    } catch (error, stackTrace) {
+      _log.severe(
+        'Failed to start video decoder.',
+        error,
+        stackTrace,
+      );
 
-      _subscribeToVideo(widget.session.videoService);
+      if (!mounted || !identical(_decoder, decoder)) {
+        return;
+      }
+
+      setState(() {
+        _decoderError = error.toString();
+      });
     }
+  }
+
+  void _subscribeToSession(HeadunitSession session) {
+    _sessionSubscription = session.states.listen((state) {
+      if (!mounted) return;
+
+      setState(() {
+        _sessionState = state;
+      });
+    });
   }
 
   void _subscribeToVideo(VideoService service) {
@@ -90,16 +140,143 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         });
       },
       onError: (Object error, StackTrace stackTrace) {
+        _log.severe(
+          'Video packet stream error.',
+          error,
+          stackTrace,
+        );
+
         if (!mounted) return;
-        setState(() => _videoError = error.toString());
+
+        setState(() {
+          _videoError = error.toString();
+        });
       },
+    );
+  }
+
+  Widget _buildVideoSurface(ThemeData theme) {
+    final builder = widget.videoBuilder;
+
+    if (builder != null) {
+      // Both dashboard and fullscreen use the same decoder instance.
+      return builder(context, _decoder);
+    }
+
+    return _buildVideoPlaceholder(theme);
+  }
+
+  Future<void> _toggleFullscreen() async {
+    if (!mounted) return;
+
+    final enterFullscreen = !_isFullscreen;
+
+    setState(() {
+      _isFullscreen = enterFullscreen;
+    });
+
+    _log.info(
+      'Fullscreen ${enterFullscreen ? "enabled" : "disabled"}: '
+      'decoder=${identityHashCode(_decoder)}, '
+      'inputPackets=${_decoder.inputPacketCount}, '
+      'outputFrames=${_decoder.outputFrameCount}.',
+    );
+
+    try {
+      await SystemChrome.setEnabledSystemUIMode(
+        enterFullscreen
+            ? SystemUiMode.immersiveSticky
+            : SystemUiMode.edgeToEdge,
+      );
+    } catch (error, stackTrace) {
+      _log.warning(
+        'Failed to change system UI mode.',
+        error,
+        stackTrace,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isFullscreen = !enterFullscreen;
+        });
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant HeadunitServerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.session == widget.session) {
+      return;
+    }
+
+    _log.info(
+      'Head-unit session changed. Replacing decoder and subscriptions.',
+    );
+
+    _sessionSubscription?.cancel();
+    _videoSubscription?.cancel();
+
+    // Replace the decoder only when the underlying session changes.
+    final previousDecoder = _decoder;
+    final nextDecoder = _createDecoder();
+
+    _decoder = nextDecoder;
+
+    _sessionState = widget.session.state;
+
+    _packetCount = 0;
+    _totalBytes = 0;
+    _lastMessageId = null;
+    _lastPacketAt = null;
+
+    _videoError = null;
+    _decoderError = null;
+
+    unawaited(previousDecoder.dispose());
+
+    _subscribeToSession(widget.session);
+    _subscribeToVideo(widget.session.videoService);
+
+    unawaited(
+      _startDecoder(
+        nextDecoder,
+        widget.session.videoService,
+      ),
     );
   }
 
   @override
   void dispose() {
+    _log.info(
+      'Disposing HeadunitServerScreen: '
+      'decoder=${identityHashCode(_decoder)}, '
+      'inputPackets=${_decoder.inputPacketCount}, '
+      'outputFrames=${_decoder.outputFrameCount}.',
+    );
+
     _sessionSubscription?.cancel();
     _videoSubscription?.cancel();
+
+    // The decoder is disposed when its owner goes away,
+    // not when the video view changes between layouts.
+    unawaited(_decoder.dispose());
+
+    if (_isFullscreen) {
+      unawaited(
+        SystemChrome.setEnabledSystemUIMode(
+          SystemUiMode.edgeToEdge,
+        ).catchError((Object error, StackTrace stackTrace) {
+          _log.warning(
+            'Could not restore system UI mode.',
+            error,
+            stackTrace,
+          );
+        }),
+      );
+    }
+
     super.dispose();
   }
 
@@ -108,10 +285,57 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
+    // ------------------------------------------------------------
+    // FULLSCREEN MODE
+    // ------------------------------------------------------------
+    if (_isFullscreen) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(
+              color: Colors.black,
+              child: _buildVideoSurface(theme),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: SafeArea(
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    tooltip: 'Exit fullscreen',
+                    onPressed: _toggleFullscreen,
+                    icon: const Icon(
+                      Icons.fullscreen_exit,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ------------------------------------------------------------
+    // NORMAL DASHBOARD
+    // ------------------------------------------------------------
     return Scaffold(
       appBar: AppBar(
         title: const Text('Android Auto Head Unit'),
         actions: [
+          IconButton(
+            tooltip: 'Fullscreen video',
+            icon: const Icon(Icons.fullscreen),
+            onPressed: _toggleFullscreen,
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
@@ -124,83 +348,69 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         ],
       ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return ListView(
-              padding: const EdgeInsets.all(16),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _ConnectionCard(
+              deviceSerial: widget.deviceSerial,
+              state: _sessionState,
+              color: _sessionColor(colors),
+            ),
+            const SizedBox(height: 20),
+            Row(
               children: [
-                _ConnectionCard(
-                  deviceSerial: widget.deviceSerial,
-                  state: _sessionState,
-                  color: _sessionColor(colors),
-                ),
-                const SizedBox(height: 20),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Projection display',
-                        style: theme.textTheme.titleLarge,
-                      ),
-                    ),
-                    Text(
-                      '800 × 480',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Dedicated video output. The decoder widget will replace
-                // the placeholder without changing the surrounding screen.
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: ColoredBox(
-                    color: Colors.black,
-                    child: AspectRatio(
-                      aspectRatio: 800 / 480,
-                      child: widget.videoBuilder != null
-                          ? widget.videoBuilder!(context, _video)
-                          : _buildVideoPlaceholder(theme),
-                    ),
+                Expanded(
+                  child: Text(
+                    'Projection display',
+                    style: theme.textTheme.titleLarge,
                   ),
                 ),
-
-                const SizedBox(height: 20),
                 Text(
-                  'Video pipeline',
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: 10),
-
-                _VideoStatusCard(
-                  isSetup: _video.isSetup,
-                  isStreaming: _video.isStreaming,
-                  focusMode: _video.focusMode?.name ?? 'Not negotiated',
-                  sessionId: _video.sessionId,
-                  packetCount: _packetCount,
-                  totalBytes: _totalBytes,
-                  lastMessageId: _lastMessageId,
-                  lastPacketAt: _lastPacketAt,
-                  error: _videoError,
-                ),
-
-                const SizedBox(height: 16),
-                Text(
-                  'The protocol session and video rendering are separate '
-                  'stages. Incoming packet statistics confirm that encoded '
-                  'video is arriving; a decoder is required to display '
-                  'actual frames.',
-                  style: theme.textTheme.bodySmall?.copyWith(
+                  '800 × 480',
+                  style: theme.textTheme.labelLarge?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
                 ),
               ],
-            );
-          },
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ColoredBox(
+                color: Colors.black,
+                child: AspectRatio(
+                  aspectRatio: 800 / 480,
+                  child: _buildVideoSurface(theme),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Video pipeline',
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 10),
+            _VideoStatusCard(
+              isSetup: _video.isSetup,
+              isStreaming: _video.isStreaming,
+              focusMode: _video.focusMode?.name ?? 'Not negotiated',
+              sessionId: _video.sessionId,
+              packetCount: _packetCount,
+              totalBytes: _totalBytes,
+              lastMessageId: _lastMessageId,
+              lastPacketAt: _lastPacketAt,
+              error: _decoderError ?? _videoError,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'The decoder is owned by the screen and is independent '
+              'of fullscreen rendering. Encoded packet and decoded '
+              'frame counters help diagnose the video pipeline.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -210,16 +420,21 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
     final colors = theme.colorScheme;
 
     final String subtitle;
-    if (_sessionState != HeadunitSessionState.connected) {
+
+    if (_decoderError != null) {
+      subtitle = 'Decoder failed: $_decoderError';
+    } else if (_packetCount > 0 && _decoder.outputFrameCount > 0) {
+      subtitle = 'Video frames decoded; renderer not attached';
+    } else if (_packetCount > 0) {
+      subtitle = 'Receiving encoded video; waiting for decoded frames';
+    } else if (_sessionState != HeadunitSessionState.connected) {
       subtitle = 'Waiting for an active Android Auto session';
     } else if (!_video.isSetup) {
       subtitle = 'Waiting for video AV setup';
     } else if (!_video.isStreaming) {
       subtitle = 'Video configured; waiting for stream start';
-    } else if (_packetCount == 0) {
-      subtitle = 'Stream started; waiting for H.264 packets';
     } else {
-      subtitle = 'H.264 packets received; decoder not attached';
+      subtitle = 'Stream started; waiting for video packets';
     }
 
     return Center(
@@ -251,15 +466,21 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
               ),
             ),
             if (_packetCount > 0) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
                 '$_packetCount packets · ${_formatBytes(_totalBytes)}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.65),
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Colors.white70),
               ),
             ],
+            const SizedBox(height: 8),
+            Text(
+              'FFmpeg input: ${_decoder.inputPacketCount} · '
+              'output frames: ${_decoder.outputFrameCount}',
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 11,
+              ),
+            ),
           ],
         ),
       ),
@@ -289,6 +510,10 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
   }
 }
+
+// ==================================================================
+// CONNECTION CARD
+// ==================================================================
 
 class _ConnectionCard extends StatelessWidget {
   const _ConnectionCard({
@@ -345,6 +570,10 @@ class _ConnectionCard extends StatelessWidget {
     );
   }
 }
+
+// ==================================================================
+// VIDEO STATUS CARD
+// ==================================================================
 
 class _VideoStatusCard extends StatelessWidget {
   const _VideoStatusCard({
@@ -443,6 +672,10 @@ class _VideoStatusCard extends StatelessWidget {
   }
 }
 
+// ==================================================================
+// METRIC ROW
+// ==================================================================
+
 class _MetricRow extends StatelessWidget {
   const _MetricRow({
     required this.label,
@@ -492,6 +725,10 @@ class _MetricRow extends StatelessWidget {
   }
 }
 
+// ==================================================================
+// STATUS CHIP
+// ==================================================================
+
 class _StatusChip extends StatelessWidget {
   const _StatusChip({
     required this.label,
@@ -509,7 +746,10 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 7,
+        ),
         child: Text(
           label,
           style: TextStyle(

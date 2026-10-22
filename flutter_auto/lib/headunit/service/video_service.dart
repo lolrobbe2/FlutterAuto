@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -30,10 +29,7 @@ import 'package:flutter_auto/headunit/service/channel_service.dart';
 /// (media without a timestamp). [payload] retains the body as received;
 /// timestamp parsing and decoding belong to the video pipeline.
 class VideoMediaPacket {
-  const VideoMediaPacket({
-    required this.messageId,
-    required this.payload,
-  });
+  const VideoMediaPacket({required this.messageId, required this.payload});
 
   final int messageId;
   final Uint8List payload;
@@ -76,11 +72,22 @@ class VideoService extends ChannelService {
   int? _sessionId;
   int _ackCounter = 0;
   VideoFocusMode_Enum? _focusMode;
-
+  int _receivedVideoPackets = 0;
   bool get isSetup => _isSetup;
   bool get isStreaming => _isStreaming;
   int? get sessionId => _sessionId;
   VideoFocusMode_Enum? get focusMode => _focusMode;
+  VideoMediaPacket? _codecConfigPacket;
+
+  VideoMediaPacket? get codecConfigPacket {
+    final packet = _codecConfigPacket;
+    if (packet == null) return null;
+
+    return VideoMediaPacket(
+      messageId: packet.messageId,
+      payload: Uint8List.fromList(packet.payload),
+    );
+  }
 
   @override
   ChannelDescriptor buildDescriptor(int channelId) {
@@ -175,19 +182,14 @@ class VideoService extends ChannelService {
     final request = AVChannelSetupRequest.fromBuffer(bodyOf(message));
 
     final bool codecSupported =
-        request.mediaCodecType ==
-        MediaCodecType_Enum.MEDIA_CODEC_VIDEO_H264_BP;
+        request.mediaCodecType == MediaCodecType_Enum.MEDIA_CODEC_VIDEO_H264_BP;
 
-    log.info(
-      'Video AV setup request: codec=${request.mediaCodecType}.',
-    );
+    log.info('Video AV setup request: codec=${request.mediaCodecType}.');
 
     // Current AVChannelSetupStatus schema: FAIL=1, OK=2.
     // Value 0 is not a valid success status.
     final response = AVChannelSetupResponse(
-      mediaStatus: AVChannelSetupStatus_Enum.valueOf(
-        codecSupported ? 2 : 1,
-      )!,
+      mediaStatus: AVChannelSetupStatus_Enum.valueOf(codecSupported ? 2 : 1)!,
       maxUnacked: codecSupported ? _maxUnacked : null,
       configs: codecSupported ? const [0] : const <int>[],
     );
@@ -216,10 +218,7 @@ class VideoService extends ChannelService {
     // because this indication is not answering a focus request.
     final projectedMode = VideoFocusMode_Enum.valueOf(1)!;
 
-    await _sendVideoFocusIndication(
-      projectedMode,
-      unrequested: true,
-    );
+    await _sendVideoFocusIndication(projectedMode, unrequested: true);
   }
 
   Future<void> _handleVideoFocusRequest(ProtocolMessage message) async {
@@ -233,10 +232,7 @@ class VideoService extends ChannelService {
       'reason=${request.focusReason}.',
     );
 
-    await _sendVideoFocusIndication(
-      requestedMode,
-      unrequested: false,
-    );
+    await _sendVideoFocusIndication(requestedMode, unrequested: false);
   }
 
   Future<void> _sendVideoFocusIndication(
@@ -256,9 +252,7 @@ class VideoService extends ChannelService {
     );
 
     _focusMode = mode;
-    log.info(
-      'Video focus set to $mode (unrequested=$unrequested).',
-    );
+    log.info('Video focus set to $mode (unrequested=$unrequested).');
   }
 
   void _handleStartIndication(ProtocolMessage message) {
@@ -289,15 +283,31 @@ class VideoService extends ChannelService {
     int messageId,
   ) async {
     final payload = bodyOf(message);
+    final count = ++_receivedVideoPackets;
 
-    // Preserve the data exactly. SPS/PPS initialization data can arrive
-    // without a presentation timestamp and must not be discarded.
-    _videoPackets.add(
-      VideoMediaPacket(
+    // Log the first five packets, then every 60 packets.
+    // This avoids flooding the console.
+    if (count <= 5 || count % 60 == 0) {
+      log.info(
+        'RX VIDEO #$count: '
+        'id=0x${messageId.toRadixString(16).padLeft(4, '0')}, '
+        'bytes=${payload.length}, '
+        'streaming=$_isStreaming, '
+        'session=$_sessionId',
+      );
+    }
+    if (messageId == _mediaIndicationId) {
+      _codecConfigPacket = VideoMediaPacket(
         messageId: messageId,
-        payload: payload,
-      ),
-    );
+        payload: Uint8List.fromList(payload),
+      );
+
+      log.info(
+        'Cached video codec configuration: '
+        '${payload.length} bytes.',
+      );
+    }
+    _videoPackets.add(VideoMediaPacket(messageId: messageId, payload: payload));
 
     if (!_isStreaming || _sessionId == null) {
       log.fine(
@@ -307,9 +317,6 @@ class VideoService extends ChannelService {
       return;
     }
 
-    // Keep the phone's flow-control window moving while the decoder
-    // integration is being built. Once decoding is wired up, ACK after
-    // the decoder has accepted each packet/frame instead.
     await _sendMediaAck();
   }
 
