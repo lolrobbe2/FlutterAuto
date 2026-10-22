@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_auto/headunit/headunit_session.dart';
 import 'package:flutter_auto/screens/adb_terminal_screen.dart';
 import 'package:flutter_auto/screens/headunit_screen.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
@@ -36,12 +39,83 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
       return;
     }
 
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) =>
-            HeadunitServerScreen(deviceSerial: device.serial),
-      ),
-    );
+    if (_isConnecting) return;
+
+    setState(() {
+      _isConnecting = true;
+      _errorMessage = null;
+      _selectedSerial = device.serial;
+    });
+
+    HeadunitSession? session;
+    Future<void>? connectionTask;
+    Object? connectionError;
+
+    try {
+      // Forward the selected Android device's port to this computer.
+      await _connectAndForward(device.serial);
+
+      if (!mounted) return;
+
+      // Forwarding was configured for the selected serial above,
+      // so the session must not configure ADB forwarding again.
+      session = HeadunitSession(
+        adbManager: _adbManager,
+        host: InternetAddress.loopbackIPv4.address,
+        port: 5277,
+        configureAdb: false,
+      );
+
+      // Start connecting before navigating so the screen receives
+      // live session-state changes from the same instance.
+      connectionTask = session.connect().then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stackTrace) {
+          connectionError = error;
+        },
+      );
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => HeadunitServerScreen(
+            deviceSerial: device.serial,
+            session: session!,
+          ),
+        ),
+      );
+
+      // Make sure the connection operation has finished before disposing
+      // the session. Its error has already been captured above.
+      await connectionTask;
+
+      if (connectionError != null && mounted) {
+        setState(() {
+          _errorMessage = 'Head Unit connection failed: $connectionError';
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = error.toString();
+        });
+      }
+    } finally {
+      // Wait for an in-flight connection attempt before cleanup.
+      if (connectionTask != null) {
+        await connectionTask;
+      }
+
+      if (session != null) {
+        await session.disconnect();
+        await session.dispose();
+      }
+
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+        });
+      }
+    }
   }
 
   Future<void> _connectAndForward(String serial) async {
@@ -313,7 +387,9 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: FilledButton.tonalIcon(
-                                        onPressed: device.isAuthorized
+                                        onPressed:
+                                            device.isAuthorized &&
+                                                !_isConnecting
                                             ? () => _startHeadunitServer(device)
                                             : null,
                                         icon: const Icon(Icons.directions_car),

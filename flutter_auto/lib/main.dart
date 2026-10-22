@@ -34,7 +34,7 @@ void main() async {
 ///
 /// Call this once, before creating services that use Logger.
 void _initializeLogging() {
-  Logger.root.level = Level.ALL;
+  Logger.root.level = Level.INFO;
 
   Logger.root.onRecord.listen((LogRecord record) {
     developer.log(
