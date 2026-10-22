@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -8,10 +7,7 @@ import 'package:flutter_auto/headunit/video/ffmpeg_h264_decoder.dart';
 import 'package:logging/logging.dart';
 
 class FfmpegVideoView extends StatefulWidget {
-  const FfmpegVideoView({
-    super.key,
-    required this.decoder,
-  });
+  const FfmpegVideoView({super.key, required this.decoder});
 
   final FfmpegH264Decoder decoder;
 
@@ -128,9 +124,7 @@ class _FfmpegVideoViewState extends State<FfmpegVideoView> {
     _receivedFrames++;
 
     if (_receivedFrames <= 3 || _receivedFrames % 60 == 0) {
-      _log.info(
-        'RGBA received #$_receivedFrames; rendered=$_renderedFrames.',
-      );
+      _log.info('RGBA received #$_receivedFrames; rendered=$_renderedFrames.');
     }
 
     // Drop stale pending frames rather than letting rendering fall behind.
@@ -290,11 +284,7 @@ class _FfmpegVideoViewState extends State<FfmpegVideoView> {
                     if (_error == null)
                       const CircularProgressIndicator()
                     else
-                      Icon(
-                        Icons.error_outline,
-                        color: colors.error,
-                        size: 40,
-                      ),
+                      Icon(Icons.error_outline, color: colors.error, size: 40),
                     const SizedBox(height: 12),
                     Text(
                       _error ?? _status,
@@ -305,28 +295,6 @@ class _FfmpegVideoViewState extends State<FfmpegVideoView> {
                 ),
               ),
             ),
-          Positioned(
-            left: 8,
-            right: 8,
-            bottom: 8,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Text(
-                  'Received: $_receivedFrames · '
-                  'Rendered: $_renderedFrames · $_status',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

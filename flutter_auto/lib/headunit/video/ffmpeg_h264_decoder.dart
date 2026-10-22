@@ -142,19 +142,32 @@ class FfmpegH264Decoder {
         '-hide_banner',
         '-loglevel',
         'warning',
+
+        // Apply to H.264 decoding.
+        '-threads',
+        '1',
+
         '-f',
         'h264',
         '-i',
         inputUrl,
+
         '-an',
         '-sn',
         '-dn',
+
         '-vf',
         'scale=$width:$height',
+
         '-pix_fmt',
         'rgba',
         '-c:v',
         'rawvideo',
+
+        // Do not synchronize output by dropping frames.
+        '-fps_mode',
+        'passthrough',
+
         '-f',
         'rawvideo',
         '-flush_packets',
@@ -168,44 +181,52 @@ class FfmpegH264Decoder {
         'outputPort=${outputServer.port}.',
       );
 
-      final session = await FFmpegKit.executeWithArgumentsAsync(arguments, (
-        completedSession,
-      ) async {
-        try {
-          final code = await completedSession.getReturnCode();
-          final logs = await completedSession.getLogsAsString();
+      final session = await FFmpegKit.executeWithArgumentsAsync(
+        arguments,
+        (completedSession) async {
+          try {
+            final code = await completedSession.getReturnCode();
+            final logs = await completedSession.getLogsAsString();
 
-          _log.warning(
-            'FFMPEG SESSION FINISHED: '
-            'session=${completedSession.getSessionId()}, '
-            'returnCode=$code, '
-            'disposed=$_disposed, '
-            'inputPackets=$_inputPacketCount, '
-            'inputBytes=$_inputByteCount, '
-            'outputFrames=$_outputFrameCount.',
-          );
+            _log.warning(
+              'FFMPEG SESSION FINISHED: '
+              'session=${completedSession.getSessionId()}, '
+              'returnCode=$code, '
+              'disposed=$_disposed, '
+              'inputPackets=$_inputPacketCount, '
+              'inputBytes=$_inputByteCount, '
+              'outputFrames=$_outputFrameCount.',
+            );
 
-          if (logs.isNotEmpty) {
-            _log.warning('FFMPEG FINAL LOGS:\n$logs');
+            if (logs.isNotEmpty) {
+              _log.warning('FFMPEG FINAL LOGS:\n$logs');
+            }
+
+            if (!_disposed && !ReturnCode.isSuccess(code)) {
+              _reportError('FFmpeg exited unsuccessfully: $code');
+            }
+          } catch (error, stackTrace) {
+            _log.severe(
+              'Could not read FFmpeg session result.',
+              error,
+              stackTrace,
+            );
+          } finally {
+            final finished = _ffmpegFinished;
+
+            if (finished != null && !finished.isCompleted) {
+              finished.complete();
+            }
           }
+        },
+        (log) {
+          final message = log.getMessage().trim();
 
-          if (!_disposed && !ReturnCode.isSuccess(code)) {
-            _reportError('FFmpeg exited unsuccessfully: $code');
+          if (message.isNotEmpty) {
+            _log.fine('FFmpeg: $message');
           }
-        } catch (error, stackTrace) {
-          _log.severe(
-            'Could not read FFmpeg session result.',
-            error,
-            stackTrace,
-          );
-        } finally {
-          final finished = _ffmpegFinished;
-
-          if (finished != null && !finished.isCompleted) {
-            finished.complete();
-          }
-        }
-      });
+        },
+      );
 
       _sessionId = session.getSessionId();
 
