@@ -34,7 +34,7 @@ class SslHandshakeTransport {
       ProtocolFrame(
         channel: 0,
         frameType: FrameType.bulk,
-        messageType: MessageType.control,
+        messageType: MessageType.specific,
         encryptionType: EncryptionType.plain,
         payload: payload,
       ),

@@ -109,7 +109,6 @@ class ProtocolConnection {
 
       final ProtocolFrame frame = ProtocolFrame.decode(
         frameBytes,
-        messageType: MessageType.control,
       );
       _frameController.add(frame);
       offset += frameLength;

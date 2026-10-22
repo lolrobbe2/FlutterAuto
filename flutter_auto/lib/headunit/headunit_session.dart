@@ -297,10 +297,18 @@ class HeadunitSession {
         buildDescriptor: microphoneInputService.buildDescriptor,
       );
       // Send 0x0006 immediately, advertising all registered services.
-      final ServiceDiscoveryResponse response = await serviceManager.discover();
-      await sendControlPayload(authPayload);
+      serviceManager.start(); // Register the 0x0005 listener first.
+
+      await sendControlPayload(authPayload); // AUTH_COMPLETE (0x0004)
 
       final phoneRequest = await serviceManager.waitForPhoneRequest();
+
+      _log.info(
+        'Received discovery request from '
+        '${phoneRequest.deviceName} / ${phoneRequest.deviceBrand}',
+      );
+
+      final response = await serviceManager.discover(); // Reply with 0x0006
       _log.info('Advertised ${response.channels.length} local channels.');
 
       _setState(HeadunitSessionState.connected);

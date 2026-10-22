@@ -53,7 +53,7 @@ class VersionHandshake {
       ProtocolFrame(
         channel: 0,
         frameType: FrameType.bulk,
-        messageType: MessageType.control,
+        messageType: MessageType.specific,
         encryptionType: EncryptionType.plain,
         payload: payload,
       ),
@@ -61,7 +61,7 @@ class VersionHandshake {
 
     final ProtocolMessage response = await responseFuture.timeout(timeout);
 
-    if (response.channel != 0 || response.messageType != MessageType.control) {
+    if (response.channel != 0 || response.messageType != MessageType.specific) {
       throw const FormatException(
         'Version response was not received on the control channel.',
       );

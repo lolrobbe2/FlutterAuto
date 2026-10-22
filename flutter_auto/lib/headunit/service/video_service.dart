@@ -19,6 +19,7 @@ class VideoService {
         ..displayType = DisplayType_Enum.MAIN
         ..videoConfigs.add(
           VideoConfig()
+            ..codec = MediaCodecType_Enum.MEDIA_CODEC_VIDEO_H264_BP
             ..videoResolution = VideoResolution_Enum.VIDEO_800x480
             ..videoFps = VideoFPS_Enum.x30_
             ..marginWidth = 0

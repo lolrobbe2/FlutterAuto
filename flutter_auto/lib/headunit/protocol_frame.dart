@@ -30,6 +30,7 @@ class ProtocolFrame {
 
     final int flags =
         frameType.index |
+        (messageType == MessageType.control ? 0x04 : 0) |
         (encryptionType == EncryptionType.encrypted ? 0x08 : 0);
 
     final Uint8List result = Uint8List(headerSize + payload.length);
@@ -47,10 +48,7 @@ class ProtocolFrame {
     return result;
   }
 
-  static ProtocolFrame decode(
-    Uint8List bytes, {
-    MessageType messageType = MessageType.specific,
-  }) {
+  static ProtocolFrame decode(Uint8List bytes) {
     if (bytes.length < 4) {
       throw const FormatException('Frame header requires at least 4 bytes.');
     }
@@ -59,7 +57,9 @@ class ProtocolFrame {
     final int flags = bytes[1];
     final int rawFrameType = flags & 0x03;
     final int rawEncryptionType = (flags >> 3) & 0x01;
-
+    final MessageType messageType = (flags & 0x04) != 0
+        ? MessageType.control
+        : MessageType.specific;
     if (rawFrameType >= FrameType.values.length) {
       throw FormatException('Invalid frame type: $rawFrameType.');
     }
@@ -123,7 +123,5 @@ class ProtocolFrame {
     } else if (totalMessageSize != null) {
       throw ArgumentError('Only FIRST frames may specify totalMessageSize.');
     }
-
-   
   }
 }
