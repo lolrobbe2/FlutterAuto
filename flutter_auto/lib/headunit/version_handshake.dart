@@ -110,7 +110,7 @@ class VersionHandshake {
         .forMessageId(ControlMessage_Enum.VERSION_RESPONSE.value, channel: 0)
         .first
         .then((ProtocolMessage message) {
-          if (message.messageType != MessageType.control) {
+          if (message.messageType != MessageType.specific) {
             throw const FormatException(
               'Version response is not a control message.',
             );
