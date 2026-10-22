@@ -296,8 +296,15 @@ class HeadunitSession {
         channelId: MicrophoneInputService.defaultChannelId,
         buildDescriptor: microphoneInputService.buildDescriptor,
       );
-      await sendControlPayload(authPayload); // AUTH_COMPLETE (0x0004)
-
+      await protocolConnection.send(
+        ProtocolFrame(
+          channel: 0,
+          frameType: FrameType.bulk,
+          messageType: MessageType.specific,
+          encryptionType: EncryptionType.plain,
+          payload: authPayload,
+        ),
+      );
       // Send 0x0006 immediately, advertising all registered services.
       serviceManager.start(); // Register the 0x0005 listener first.
 
