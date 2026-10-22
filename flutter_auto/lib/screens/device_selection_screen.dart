@@ -5,6 +5,7 @@ import 'package:flutter_auto/headunit/headunit_session.dart';
 import 'package:flutter_auto/screens/adb_terminal_screen.dart';
 import 'package:flutter_auto/screens/headunit_screen.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
+import 'package:flutter_auto/screens/ffmpeg_video_view.dart';
 
 // Replace this import with the actual path to your AdbManager file.
 
@@ -77,9 +78,12 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
 
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (BuildContext context) => HeadunitServerScreen(
+          builder: (context) => HeadunitServerScreen(
             deviceSerial: device.serial,
             session: session!,
+            videoBuilder: (context, videoService) {
+              return FfmpegVideoView(videoService: videoService);
+            },
           ),
         ),
       );
