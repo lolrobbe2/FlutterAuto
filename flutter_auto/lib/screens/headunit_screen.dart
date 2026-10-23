@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_auto/headunit/drivers/input/touch_driver.dart';
 import 'package:flutter_auto/headunit/headunit_session.dart';
+import 'package:flutter_auto/headunit/input/touch_input.dart';
 import 'package:flutter_auto/headunit/service/video_service.dart';
 import 'package:flutter_auto/headunit/video/ffmpeg_h264_decoder.dart';
 import 'package:flutter_auto/headunit/video/head_unit_view.dart';
@@ -50,13 +52,17 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
   String? _decoderError;
 
   VideoService get _video => widget.session.videoService;
-
+  late TouchInput _touchInput;
   @override
   void initState() {
     super.initState();
 
     _sessionState = widget.session.state;
-
+    _touchInput = TouchInput(
+      width: _video.resolution.dimensions.width,
+      height: _video.resolution.dimensions.height,
+    );
+    widget.session.inputService.addInput(_touchInput);
     // The screen owns the decoder, not the rendering widget.
     _decoder = _createDecoder();
 
@@ -144,13 +150,14 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
   }
 
   Widget _buildVideoSurface(ThemeData theme) {
-    return HeadunitVideoView(
-      resolution: _video.resolution,
-      decoder: _decoder,
-      videoBuilder: widget.videoBuilder,
-      borderRadius: _isFullscreen ? 0 : 12,
-      backgroundColor: Colors.black,
-      showPlaceholder: true,
+    return TouchInputDriver(
+      touchInput: _touchInput,
+      child: HeadunitVideoView(
+        resolution: _video.resolution,
+        decoder: _decoder,
+        videoBuilder: widget.videoBuilder,
+        borderRadius: 12,
+      ),
     );
   }
 

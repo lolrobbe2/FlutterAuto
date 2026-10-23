@@ -15,8 +15,9 @@ class TouchInput extends InputBase {
     this.width = 800,
     this.height = 480,
     this.displayType = DisplayType_Enum.MAIN,
-  })  : assert(width > 0),
-        assert(height > 0),super('TouchInput');
+  }) : assert(width > 0),
+       assert(height > 0),
+       super('TouchInput');
 
   static const int inputEventIndicationId = 0x8001;
 
@@ -51,10 +52,7 @@ class TouchInput extends InputBase {
       );
     }
 
-    _activePointers[pointerId] = _TouchPoint(
-      x: _clampX(x),
-      y: _clampY(y),
-    );
+    _activePointers[pointerId] = _TouchPoint(x: _clampX(x), y: _clampY(y));
 
     try {
       await _sendTouchEvent(TouchAction_Enum.PRESS);
@@ -67,11 +65,7 @@ class TouchInput extends InputBase {
   /// Moves an active finger: DRAG.
   ///
   /// The event includes every currently active pointer.
-  Future<void> drag({
-    required int x,
-    required int y,
-    int pointerId = 0,
-  }) async {
+  Future<void> drag({required int x, required int y, int pointerId = 0}) async {
     final point = _activePointers[pointerId];
 
     if (point == null) {
@@ -84,17 +78,17 @@ class TouchInput extends InputBase {
     await _sendTouchEvent(TouchAction_Enum.DRAG);
   }
 
-  /// Releases the only active finger: RELEASE.
-  Future<void> release({int pointerId = 0}) async {
+  Future<void> release({int pointerId = 0, int? x, int? y}) async {
     if (_activePointers.length != 1 ||
         !_activePointers.containsKey(pointerId)) {
-      throw StateError(
-        'RELEASE requires the only active pointer. '
-        'Use pointerUp() when multiple pointers are active.',
-      );
+      throw StateError('RELEASE requires the only active pointer.');
     }
 
-    // The released pointer must still be included in the event.
+    final point = _activePointers[pointerId]!;
+
+    if (x != null) point.x = _clampX(x);
+    if (y != null) point.y = _clampY(y);
+
     await _sendTouchEvent(TouchAction_Enum.RELEASE);
 
     _activePointers.remove(pointerId);
@@ -114,10 +108,7 @@ class TouchInput extends InputBase {
       throw StateError('Pointer $pointerId is already active.');
     }
 
-    _activePointers[pointerId] = _TouchPoint(
-      x: _clampX(x),
-      y: _clampY(y),
-    );
+    _activePointers[pointerId] = _TouchPoint(x: _clampX(x), y: _clampY(y));
 
     try {
       final actionIndex = _pointerIndex(pointerId);
@@ -228,10 +219,7 @@ class TouchInput extends InputBase {
 }
 
 class _TouchPoint {
-  _TouchPoint({
-    required this.x,
-    required this.y,
-  });
+  _TouchPoint({required this.x, required this.y});
 
   int x;
   int y;
