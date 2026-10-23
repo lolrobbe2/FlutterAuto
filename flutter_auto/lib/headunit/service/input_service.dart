@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_auto/generated/oaa/common/StatusEnum.pbenum.dart';
 import 'package:flutter_auto/generated/oaa/control/ChannelDescriptorData.pb.dart';
 import 'package:flutter_auto/generated/oaa/control/ChannelOpenRequestMessage.pb.dart';
@@ -5,6 +7,8 @@ import 'package:flutter_auto/generated/oaa/control/ChannelOpenResponseMessage.pb
 import 'package:flutter_auto/generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
 import 'package:flutter_auto/generated/oaa/input/InputChannelConfigData.pb.dart';
 import 'package:flutter_auto/generated/oaa/input/TouchScreenConfigData.pb.dart';
+import 'package:flutter_auto/headunit/input/input_base.dart';
+import 'package:flutter_auto/headunit/input/touch_input.dart';
 import 'package:flutter_auto/headunit/protocol_frame.dart';
 import 'package:flutter_auto/headunit/protocol_message.dart';
 import 'package:flutter_auto/headunit/service/channel_service.dart';
@@ -16,17 +20,42 @@ class InputService extends ChannelService {
   // Must match the video resolution advertised by VideoService.
   static const int videoWidth = 800;
   static const int videoHeight = 480;
+  final List<InputBase> inputs;
 
-  InputService() : super(channelId: defaultChannelId);
-
+  InputService({List<InputBase> inputs = const []})
+    : inputs = List.unmodifiable(inputs),
+      super(channelId: defaultChannelId) {
+    for (final input in this.inputs) {
+      input.bindChannel(
+        messageIdOf: messageIdOf,
+        bodyOf: bodyOf,
+        sendMessage:
+            ({
+              required int messageId,
+              required Uint8List body,
+              required EncryptionType encryptionType,
+              required MessageType messageType,
+              required FrameType frameType,
+            }) {
+              return sendMessage(
+                messageId: messageId,
+                body: body,
+                encryptionType: encryptionType,
+                messageType: messageType,
+                frameType: frameType,
+              );
+            },
+      );
+    }
+  }
   ChannelDescriptor buildDescriptor(int channelId) {
     return ChannelDescriptor()
       ..channelId = channelId
       ..inputChannel = (InputChannelConfig()
         ..displayId = 0
         ..supportedKeycodes.addAll([3, 4, 84])
-        ..touchScreenConfigs.add(
-          TouchScreenConfig(width: videoWidth, height: videoHeight),
+        ..touchScreenConfigs.addAll(
+          inputs.whereType<TouchInput>().map((input) => input.buildConfig()),
         ));
   }
 
@@ -39,11 +68,9 @@ class InputService extends ChannelService {
       await _handleChannelOpenRequest(message);
       return;
     }
-
-    log.fine(
-      'Unhandled input message: '
-      '0x${id.toRadixString(16).padLeft(4, '0')}',
-    );
+    for (final input in inputs) {
+      await input.handleMessage(message);
+    }
   }
 
   Future<void> _handleChannelOpenRequest(ProtocolMessage message) async {

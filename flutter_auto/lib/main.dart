@@ -2,6 +2,7 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_auto/command_line.dart';
 import 'package:flutter_auto/screens/device_selection_screen.dart';
 import 'package:flutter_auto/services/adb_manager.dart';
 import 'package:logging/logging.dart';
@@ -41,25 +42,6 @@ Future<void> main(List<String> args) async {
   }
 
   runApp(const MainApp());
-}
-
-/// Command-line options for FlutterAuto.
-///
-/// No options are currently supported. Add option fields and parsing
-/// logic here when command-line options are introduced.
-class CommandLineOptions {
-  const CommandLineOptions();
-
-  static CommandLineOptions parse(List<String> args) {
-    if (args.isNotEmpty) {
-      throw FormatException(
-        'No command-line options are currently supported. '
-        'Unexpected arguments: ${args.join(' ')}',
-      );
-    }
-
-    return const CommandLineOptions();
-  }
 }
 
 /// Configures application-wide logging.
