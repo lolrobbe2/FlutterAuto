@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_auto/headunit/headunit_session.dart';
 import 'package:flutter_auto/headunit/service/video_service.dart';
 import 'package:flutter_auto/headunit/video/ffmpeg_h264_decoder.dart';
+import 'package:flutter_auto/headunit/video/head_unit_view.dart';
+import 'package:flutter_auto/headunit/video/video_message_id.dart';
 import 'package:logging/logging.dart';
 
 class HeadunitServerScreen extends StatefulWidget {
@@ -21,14 +23,11 @@ class HeadunitServerScreen extends StatefulWidget {
   /// Builds a rendering view using the screen-owned decoder.
   ///
   /// The returned widget must not start or dispose the decoder.
-  final Widget Function(
-    BuildContext context,
-    FfmpegH264Decoder decoder,
-  )? videoBuilder;
+  final Widget Function(BuildContext context, FfmpegH264Decoder decoder)?
+  videoBuilder;
 
   @override
-  State<HeadunitServerScreen> createState() =>
-      _HeadunitServerScreenState();
+  State<HeadunitServerScreen> createState() => _HeadunitServerScreenState();
 }
 
 class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
@@ -68,10 +67,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
   }
 
   FfmpegH264Decoder _createDecoder() {
-    return FfmpegH264Decoder(
-      width: 800,
-      height: 480,
-    );
+    return FfmpegH264Decoder(width: 800, height: 480);
   }
 
   Future<void> _startDecoder(
@@ -100,11 +96,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         _decoderError = null;
       });
     } catch (error, stackTrace) {
-      _log.severe(
-        'Failed to start video decoder.',
-        error,
-        stackTrace,
-      );
+      _log.severe('Failed to start video decoder.', error, stackTrace);
 
       if (!mounted || !identical(_decoder, decoder)) {
         return;
@@ -140,11 +132,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         });
       },
       onError: (Object error, StackTrace stackTrace) {
-        _log.severe(
-          'Video packet stream error.',
-          error,
-          stackTrace,
-        );
+        _log.severe('Video packet stream error.', error, stackTrace);
 
         if (!mounted) return;
 
@@ -156,14 +144,14 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
   }
 
   Widget _buildVideoSurface(ThemeData theme) {
-    final builder = widget.videoBuilder;
-
-    if (builder != null) {
-      // Both dashboard and fullscreen use the same decoder instance.
-      return builder(context, _decoder);
-    }
-
-    return _buildVideoPlaceholder(theme);
+    return HeadunitVideoView(
+      resolution: _video.resolution,
+      decoder: _decoder,
+      videoBuilder: widget.videoBuilder,
+      borderRadius: _isFullscreen ? 0 : 12,
+      backgroundColor: Colors.black,
+      showPlaceholder: true,
+    );
   }
 
   Future<void> _toggleFullscreen() async {
@@ -189,11 +177,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
             : SystemUiMode.edgeToEdge,
       );
     } catch (error, stackTrace) {
-      _log.warning(
-        'Failed to change system UI mode.',
-        error,
-        stackTrace,
-      );
+      _log.warning('Failed to change system UI mode.', error, stackTrace);
 
       if (mounted) {
         setState(() {
@@ -239,12 +223,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
     _subscribeToSession(widget.session);
     _subscribeToVideo(widget.session.videoService);
 
-    unawaited(
-      _startDecoder(
-        nextDecoder,
-        widget.session.videoService,
-      ),
-    );
+    unawaited(_startDecoder(nextDecoder, widget.session.videoService));
   }
 
   @override
@@ -268,11 +247,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         SystemChrome.setEnabledSystemUIMode(
           SystemUiMode.edgeToEdge,
         ).catchError((Object error, StackTrace stackTrace) {
-          _log.warning(
-            'Could not restore system UI mode.',
-            error,
-            stackTrace,
-          );
+          _log.warning('Could not restore system UI mode.', error, stackTrace);
         }),
       );
     }
@@ -294,10 +269,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            ColoredBox(
-              color: Colors.black,
-              child: _buildVideoSurface(theme),
-            ),
+            ColoredBox(color: Colors.black, child: _buildVideoSurface(theme)),
             Positioned(
               top: 8,
               right: 8,
@@ -351,12 +323,6 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _ConnectionCard(
-              deviceSerial: widget.deviceSerial,
-              state: _sessionState,
-              color: _sessionColor(colors),
-            ),
-            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
@@ -366,7 +332,8 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
                   ),
                 ),
                 Text(
-                  '800 × 480',
+                  '${_video.resolution.dimensions.width} × '
+                  '${_video.resolution.dimensions.height}',
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
@@ -374,22 +341,12 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
               ],
             ),
             const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: ColoredBox(
-                color: Colors.black,
-                child: AspectRatio(
-                  aspectRatio: 800 / 480,
-                  child: _buildVideoSurface(theme),
-                ),
-              ),
-            ),
+            _buildVideoSurface(theme),
             const SizedBox(height: 20),
-            Text(
-              'Video pipeline',
-              style: theme.textTheme.titleLarge,
-            ),
+
+            Text('Video pipeline', style: theme.textTheme.titleLarge),
             const SizedBox(height: 10),
+
             _VideoStatusCard(
               isSetup: _video.isSetup,
               isStreaming: _video.isStreaming,
@@ -401,11 +358,12 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
               lastPacketAt: _lastPacketAt,
               error: _decoderError ?? _videoError,
             ),
+
             const SizedBox(height: 16),
+
             Text(
-              'The decoder is owned by the screen and is independent '
-              'of fullscreen rendering. Encoded packet and decoded '
-              'frame counters help diagnose the video pipeline.',
+              'FFmpeg input: ${_decoder.inputPacketCount} · '
+              'output frames: ${_decoder.outputFrameCount}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
@@ -461,9 +419,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.75),
-              ),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
             ),
             if (_packetCount > 0) ...[
               const SizedBox(height: 12),
@@ -476,10 +432,7 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
             Text(
               'FFmpeg input: ${_decoder.inputPacketCount} · '
               'output frames: ${_decoder.outputFrameCount}',
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 11,
-              ),
+              style: const TextStyle(color: Colors.white54, fontSize: 11),
             ),
           ],
         ),
@@ -541,18 +494,13 @@ class _ConnectionCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Connected device',
-                    style: theme.textTheme.titleMedium,
-                  ),
+                  Text('Connected device', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(deviceSerial),
                   const SizedBox(height: 4),
                   Text(
                     state.name,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: color,
-                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(color: color),
                   ),
                 ],
               ),
@@ -617,22 +565,13 @@ class _VideoStatusCard extends StatelessWidget {
               value: isStreaming ? 'Started' : 'Stopped',
               good: isStreaming,
             ),
-            _MetricRow(
-              label: 'Video focus',
-              value: focusMode,
-            ),
+            _MetricRow(label: 'Video focus', value: focusMode),
             _MetricRow(
               label: 'Video session ID',
               value: sessionId?.toString() ?? '—',
             ),
-            _MetricRow(
-              label: 'Received packets',
-              value: '$packetCount',
-            ),
-            _MetricRow(
-              label: 'Encoded data',
-              value: _formatBytes(totalBytes),
-            ),
+            _MetricRow(label: 'Received packets', value: '$packetCount'),
+            _MetricRow(label: 'Encoded data', value: _formatBytes(totalBytes)),
             _MetricRow(
               label: 'Last message ID',
               value: lastMessageId == null
@@ -677,11 +616,7 @@ class _VideoStatusCard extends StatelessWidget {
 // ==================================================================
 
 class _MetricRow extends StatelessWidget {
-  const _MetricRow({
-    required this.label,
-    required this.value,
-    this.good,
-  });
+  const _MetricRow({required this.label, required this.value, this.good});
 
   final String label;
   final String value;
@@ -696,12 +631,7 @@ class _MetricRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
+          Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
           if (good != null) ...[
             Icon(
               good! ? Icons.check_circle : Icons.schedule,
@@ -730,10 +660,7 @@ class _MetricRow extends StatelessWidget {
 // ==================================================================
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.label,
-    required this.color,
-  });
+  const _StatusChip({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -746,16 +673,10 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 7,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         child: Text(
           label,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: color, fontWeight: FontWeight.w600),
         ),
       ),
     );

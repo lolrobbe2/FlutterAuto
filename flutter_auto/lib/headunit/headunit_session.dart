@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_auto/generated/oaa/video/VideoFPSEnum.pbenum.dart';
+import 'package:flutter_auto/generated/oaa/video/VideoResolutionEnum.pbenum.dart';
 import 'package:flutter_auto/headunit/message_router.dart';
 import 'package:flutter_auto/headunit/protocol_message_sender.dart';
 import 'package:flutter_auto/headunit/security/android_auto_tls_client.dart';
@@ -81,7 +83,15 @@ class HeadunitSession {
     this.minorVersion = 1,
     this.configureAdb = true,
     this.connectionTimeout = const Duration(seconds: 10),
-  }) : identity = identity ?? HeadUnitIdentity();
+    VideoResolution_Enum videoResolution = VideoResolution_Enum.VIDEO_800x480,
+    VideoFPS_Enum videoFps = VideoFPS_Enum.x30_,
+    int videoDpi = 140,
+  }) : identity = identity ?? HeadUnitIdentity(),
+       videoService = VideoService(
+         resolution: videoResolution,
+         fps: videoFps,
+         dpi: videoDpi,
+       );
 
   final Logger _log = Logger('HeadunitSession');
 
@@ -101,11 +111,11 @@ class HeadunitSession {
   // Channel services are long-lived and may be reused across connections.
   final inputService = InputService();
   final sensorService = SensorService();
-  final videoService = VideoService();
   final mediaAudioService = MediaAudioService();
   final speechAudioService = SpeechAudioService();
   final systemAudioService = SystemAudioService();
   final microphoneInputService = MicrophoneInputService();
+  VideoService videoService;
 
   HeadunitSessionState _state = HeadunitSessionState.disconnected;
 

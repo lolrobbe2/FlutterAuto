@@ -124,7 +124,7 @@ class _FfmpegVideoViewState extends State<FfmpegVideoView> {
     _receivedFrames++;
 
     if (_receivedFrames <= 3 || _receivedFrames % 60 == 0) {
-      _log.info('RGBA received #$_receivedFrames; rendered=$_renderedFrames.');
+      _log.fine('RGBA received #$_receivedFrames; rendered=$_renderedFrames.');
     }
 
     // Drop stale pending frames rather than letting rendering fall behind.
@@ -187,7 +187,7 @@ class _FfmpegVideoViewState extends State<FfmpegVideoView> {
           });
 
           if (_renderedFrames <= 3 || _renderedFrames % 60 == 0) {
-            _log.info(
+            _log.fine(
               'RENDERED #$_renderedFrames: '
               '${decoded.width}x${decoded.height}.',
             );

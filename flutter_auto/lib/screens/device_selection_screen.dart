@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_auto/generated/oaa/video/VideoResolutionEnum.pb.dart';
 import 'package:flutter_auto/headunit/headunit_session.dart';
 import 'package:flutter_auto/screens/adb_terminal_screen.dart';
 import 'package:flutter_auto/screens/headunit_screen.dart';
@@ -62,6 +63,7 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
         host: InternetAddress.loopbackIPv4.address,
         port: 5277,
         configureAdb: false,
+        videoResolution: VideoResolution_Enum.VIDEO_800x480
       );
 
       connectionTask = session.connect().then<void>(

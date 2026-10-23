@@ -12,6 +12,7 @@ import 'package:flutter_auto/generated/oaa/common/StatusEnum.pbenum.dart';
 import 'package:flutter_auto/generated/oaa/control/ChannelDescriptorData.pb.dart';
 import 'package:flutter_auto/generated/oaa/control/ChannelOpenRequestMessage.pb.dart';
 import 'package:flutter_auto/generated/oaa/control/ChannelOpenResponseMessage.pb.dart';
+import 'package:flutter_auto/generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
 import 'package:flutter_auto/generated/oaa/video/DisplayTypeEnum.pb.dart';
 import 'package:flutter_auto/generated/oaa/video/VideoConfigData.pb.dart';
 import 'package:flutter_auto/generated/oaa/video/VideoFPSEnum.pb.dart';
@@ -22,6 +23,7 @@ import 'package:flutter_auto/generated/oaa/video/VideoResolutionEnum.pb.dart';
 import 'package:flutter_auto/headunit/protocol_frame.dart';
 import 'package:flutter_auto/headunit/protocol_message.dart';
 import 'package:flutter_auto/headunit/service/channel_service.dart';
+import 'package:flutter_auto/headunit/video/video_message_id.dart';
 
 /// Raw media received from the phone on the video channel.
 ///
@@ -41,25 +43,22 @@ class VideoService extends ChannelService {
   static const String serviceName = 'video';
   static const int defaultChannelId = 3;
 
-  static const int _channelOpenRequestId = 0x0007;
-  static const int _channelOpenResponseId = 0x0008;
-
-  static const int _setupRequestId = 0x8000;
-  static const int _startIndicationId = 0x8001;
-  static const int _stopIndicationId = 0x8002;
-  static const int _setupResponseId = 0x8003;
-  static const int _mediaAckId = 0x8004;
-
-  static const int _videoFocusRequestId = 0x8007;
-  static const int _videoFocusIndicationId = 0x8008;
-
-  static const int _mediaWithTimestampId = 0x0000;
-  static const int _mediaIndicationId = 0x0001;
-
   static const int _maxUnacked = 10;
 
-  VideoService() : super(channelId: defaultChannelId);
+  VideoService({
+    this.resolution = VideoResolution_Enum.VIDEO_800x480,
+    this.fps = VideoFPS_Enum.x30_,
+    this.dpi = 140,
+  }) : super(channelId: defaultChannelId);
 
+  /// Video resolution advertised to the Android phone.
+  final VideoResolution_Enum resolution;
+
+  /// Requested video frame rate.
+  final VideoFPS_Enum fps;
+
+  /// Display density advertised to the phone.
+  final int dpi;
   final StreamController<VideoMediaPacket> _videoPackets =
       StreamController<VideoMediaPacket>.broadcast();
 
@@ -100,52 +99,47 @@ class VideoService extends ChannelService {
         ..videoConfigs.add(
           VideoConfig()
             ..codec = MediaCodecType_Enum.MEDIA_CODEC_VIDEO_H264_BP
-            ..videoResolution = VideoResolution_Enum.VIDEO_800x480
-            ..videoFps = VideoFPS_Enum.x30_
+            ..videoResolution = resolution
+            ..videoFps = fps
             ..marginWidth = 0
             ..marginHeight = 0
-            ..dpi = 140,
+            ..dpi = dpi,
         ));
   }
 
   @override
   Future<void> handleMessage(ProtocolMessage message) async {
-    final int id = messageIdOf(message);
+    final int rawId = messageIdOf(message);
+    final VideoMessageId? id = VideoMessageId.fromValue(rawId);
 
-    if (id == _channelOpenRequestId) {
-      await _handleChannelOpenRequest(message);
+    if (id == null) {
+      log.warning(
+        'Unknown video message ID: '
+        '0x${rawId.toRadixString(16).padLeft(4, '0')}.',
+      );
       return;
     }
 
-    if (id == _setupRequestId) {
-      await _handleSetupRequest(message);
-      return;
+    switch (id) {
+      case VideoMessageId.channelOpenRequest:
+        await _handleChannelOpenRequest(message);
+      case VideoMessageId.avChannelSetupRequest:
+        await _handleSetupRequest(message);
+      case VideoMessageId.videoFocusRequest:
+        await _handleVideoFocusRequest(message);
+      case VideoMessageId.avChannelStartIndication:
+        _handleStartIndication(message);
+      case VideoMessageId.avChannelStopIndication:
+        _handleStopIndication();
+      case VideoMessageId.mediaWithTimestamp:
+      case VideoMessageId.media:
+        await _handleMediaPacket(message, id);
+      case VideoMessageId.channelOpenResponse:
+      case VideoMessageId.avChannelSetupResponse:
+      case VideoMessageId.avMediaAckIndication:
+      case VideoMessageId.videoFocusIndication:
+        log.fine('Received response/indication: $id.');
     }
-
-    if (id == _videoFocusRequestId) {
-      await _handleVideoFocusRequest(message);
-      return;
-    }
-
-    if (id == _startIndicationId) {
-      _handleStartIndication(message);
-      return;
-    }
-
-    if (id == _stopIndicationId) {
-      _handleStopIndication();
-      return;
-    }
-
-    if (id == _mediaWithTimestampId || id == _mediaIndicationId) {
-      await _handleMediaPacket(message, id);
-      return;
-    }
-
-    log.fine(
-      'Unhandled video message: '
-      '0x${id.toRadixString(16).padLeft(4, '0')}',
-    );
   }
 
   Future<void> _handleChannelOpenRequest(ProtocolMessage message) async {
@@ -162,7 +156,7 @@ class VideoService extends ChannelService {
     final response = ChannelOpenResponse(status: Status_Enum.OK);
 
     await sendMessage(
-      messageId: _channelOpenResponseId,
+      messageId: ControlMessage_Enum.CHANNEL_OPEN_RESPONSE.value,
       body: response.writeToBuffer(),
       encryptionType: EncryptionType.encrypted,
       messageType: MessageType.control,
@@ -195,7 +189,7 @@ class VideoService extends ChannelService {
     );
 
     await sendMessage(
-      messageId: _setupResponseId,
+      messageId: VideoMessageId.avChannelSetupResponse.value,
       body: response.writeToBuffer(),
       encryptionType: EncryptionType.encrypted,
       messageType: MessageType.specific,
@@ -211,7 +205,7 @@ class VideoService extends ChannelService {
     _isSetup = true;
     log.info(
       'Video setup accepted: H.264, '
-      '800x480, maxUnacked=$_maxUnacked.',
+      '$resolution, maxUnacked=$_maxUnacked.',
     );
 
     // Proactively grant projected focus after setup. Mark it unrequested
@@ -245,7 +239,7 @@ class VideoService extends ChannelService {
     );
 
     await sendMessage(
-      messageId: _videoFocusIndicationId,
+      messageId: VideoMessageId.videoFocusIndication.value,
       body: indication.writeToBuffer(),
       encryptionType: EncryptionType.encrypted,
       messageType: MessageType.specific,
@@ -280,40 +274,37 @@ class VideoService extends ChannelService {
 
   Future<void> _handleMediaPacket(
     ProtocolMessage message,
-    int messageId,
+    VideoMessageId messageId,
   ) async {
     final payload = bodyOf(message);
     final count = ++_receivedVideoPackets;
 
-    // Log the first five packets, then every 60 packets.
-    // This avoids flooding the console.
     if (count <= 5 || count % 60 == 0) {
-      log.info(
+      log.fine(
         'RX VIDEO #$count: '
-        'id=0x${messageId.toRadixString(16).padLeft(4, '0')}, '
+        'id=0x${messageId.value.toRadixString(16).padLeft(4, '0')}, '
         'bytes=${payload.length}, '
         'streaming=$_isStreaming, '
         'session=$_sessionId',
       );
     }
-    if (messageId == _mediaIndicationId) {
+
+    if (messageId == VideoMessageId.media) {
       _codecConfigPacket = VideoMediaPacket(
-        messageId: messageId,
+        messageId: messageId.value,
         payload: Uint8List.fromList(payload),
       );
-
-      log.info(
-        'Cached video codec configuration: '
-        '${payload.length} bytes.',
-      );
     }
-    _videoPackets.add(VideoMediaPacket(messageId: messageId, payload: payload));
+
+    _videoPackets.add(
+      VideoMediaPacket(
+        messageId: messageId.value,
+        payload: Uint8List.fromList(payload),
+      ),
+    );
 
     if (!_isStreaming || _sessionId == null) {
-      log.fine(
-        'Received video media before START_INDICATION: '
-        '${payload.length} bytes.',
-      );
+      log.finer('Received video media before START_INDICATION.');
       return;
     }
 
@@ -330,7 +321,7 @@ class VideoService extends ChannelService {
     );
 
     await sendMessage(
-      messageId: _mediaAckId,
+      messageId: VideoMessageId.avMediaAckIndication.value,
       body: ack.writeToBuffer(),
       encryptionType: EncryptionType.encrypted,
       messageType: MessageType.specific,
