@@ -6,15 +6,14 @@ import 'dart:typed_data';
 
 import 'package:ffmpeg_kit_flutter_new_video/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new_video/return_code.dart';
+import 'package:flutter_auto/generated/oaa/video/VideoFPSEnum.pbenum.dart';
 import 'package:flutter_auto/headunit/service/video_service.dart';
 import 'package:logging/logging.dart';
 
 class FfmpegH264Decoder {
-  FfmpegH264Decoder({
-    this.width = 800,
-    this.height = 480,
-  })  : assert(width > 0),
-        assert(height > 0);
+  FfmpegH264Decoder({this.width = 800, this.height = 480})
+    : assert(width > 0),
+      assert(height > 0);
 
   final int width;
   final int height;
@@ -24,8 +23,7 @@ class FfmpegH264Decoder {
   final StreamController<Uint8List> _frames =
       StreamController<Uint8List>.broadcast();
 
-  final StreamController<String> _errors =
-      StreamController<String>.broadcast();
+  final StreamController<String> _errors = StreamController<String>.broadcast();
 
   Stream<Uint8List> get frames => _frames.stream;
 
@@ -51,7 +49,7 @@ class FfmpegH264Decoder {
 
   Socket? _inputSocket;
   StreamSubscription<List<int>>? _inputSocketSubscription;
-
+  VideoService? _videoService;
   Completer<Socket>? _inputConnected;
 
   // ------------------------------------------------------------
@@ -116,7 +114,7 @@ class FfmpegH264Decoder {
     if (_disposed) {
       throw StateError('The decoder has been disposed.');
     }
-
+    _videoService = service;
     return _startFuture ??= _startInternal(service);
   }
 
@@ -136,11 +134,7 @@ class FfmpegH264Decoder {
     _packetSubscription = service.videoPackets.listen(
       _handlePacket,
       onError: (Object error, StackTrace stackTrace) {
-        _reportError(
-          'Video packet stream failed.',
-          error,
-          stackTrace,
-        );
+        _reportError('Video packet stream failed.', error, stackTrace);
       },
       onDone: () {
         _log.warning(
@@ -162,9 +156,7 @@ class FfmpegH264Decoder {
 
       _handlePacket(configPacket);
     } else {
-      _log.warning(
-        'No cached video codec configuration is available yet.',
-      );
+      _log.warning('No cached video codec configuration is available yet.');
     }
 
     try {
@@ -185,8 +177,7 @@ class FfmpegH264Decoder {
 
       _outputServer = outputServer;
 
-      _outputServerSubscription =
-          outputServer.listen(_acceptOutputSocket);
+      _outputServerSubscription = outputServer.listen(_acceptOutputSocket);
 
       if (_disposed) {
         throw StateError('Decoder was disposed during startup.');
@@ -208,8 +199,7 @@ class FfmpegH264Decoder {
 
       _inputServer = inputServer;
 
-      _inputServerSubscription =
-          inputServer.listen(_acceptInputSocket);
+      _inputServerSubscription = inputServer.listen(_acceptInputSocket);
 
       final inputUrl = 'tcp://127.0.0.1:${inputServer.port}';
 
@@ -221,7 +211,7 @@ class FfmpegH264Decoder {
       // Input is a raw H.264 stream.
       // Output is raw RGBA video sent over TCP.
       // ----------------------------------------------------------
-
+      final fps = _videoService!.fps == VideoFPS_Enum.x30_ ? '30' : '60'; 
       final arguments = <String>[
         '-hide_banner',
         '-loglevel',
@@ -240,7 +230,7 @@ class FfmpegH264Decoder {
         '-dn',
 
         '-vf',
-        'scale=$width:$height',
+        'scale=$width:$height,setpts=N/($fps*TB)',
 
         '-pix_fmt',
         'rgba',
@@ -248,8 +238,10 @@ class FfmpegH264Decoder {
         '-c:v',
         'rawvideo',
 
+        '-r',
+        '30',
         '-fps_mode',
-        'passthrough',
+        'cfr',
 
         '-f',
         'rawvideo',
@@ -337,36 +329,33 @@ class FfmpegH264Decoder {
 
       final connectedSocketFuture = _inputConnected!.future;
 
-      final ffmpegExitedFuture = _ffmpegFinished!.future.then<Socket>(
-        (_) {
-          throw StateError(
-            'FFmpeg exited before connecting to the H.264 input server '
-            'on port $inputServerPort.',
-          );
-        },
-      );
+      final ffmpegExitedFuture = _ffmpegFinished!.future.then<Socket>((_) {
+        throw StateError(
+          'FFmpeg exited before connecting to the H.264 input server '
+          'on port $inputServerPort.',
+        );
+      });
 
-      final disposeFuture = _disposeSignal.future.then<Socket>(
-        (_) {
-          throw StateError(
-            'Decoder was disposed while waiting for FFmpeg to connect.',
-          );
-        },
-      );
+      final disposeFuture = _disposeSignal.future.then<Socket>((_) {
+        throw StateError(
+          'Decoder was disposed while waiting for FFmpeg to connect.',
+        );
+      });
 
-      final inputSocket = await Future.any<Socket>([
-        connectedSocketFuture,
-        ffmpegExitedFuture,
-        disposeFuture,
-      ]).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw StateError(
-            'FFmpeg did not connect to the H.264 input server '
-            'on port $inputServerPort within 10 seconds.',
+      final inputSocket =
+          await Future.any<Socket>([
+            connectedSocketFuture,
+            ffmpegExitedFuture,
+            disposeFuture,
+          ]).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw StateError(
+                'FFmpeg did not connect to the H.264 input server '
+                'on port $inputServerPort within 10 seconds.',
+              );
+            },
           );
-        },
-      );
 
       if (_disposed) {
         return;
@@ -404,11 +393,7 @@ class FfmpegH264Decoder {
       }
 
       if (!_disposed) {
-        _reportError(
-          'Failed to start FFmpeg decoder.',
-          error,
-          stackTrace,
-        );
+        _reportError('Failed to start FFmpeg decoder.', error, stackTrace);
       }
 
       rethrow;
@@ -440,11 +425,7 @@ class FfmpegH264Decoder {
       },
       onError: (Object error, StackTrace stackTrace) {
         if (!_disposed) {
-          _reportError(
-            'FFmpeg input socket failed.',
-            error,
-            stackTrace,
-          );
+          _reportError('FFmpeg input socket failed.', error, stackTrace);
         }
       },
       onDone: () {
@@ -520,11 +501,7 @@ class FfmpegH264Decoder {
       _handleDecodedBytes,
       onError: (Object error, StackTrace stackTrace) {
         if (!_disposed) {
-          _reportError(
-            'FFmpeg output socket failed.',
-            error,
-            stackTrace,
-          );
+          _reportError('FFmpeg output socket failed.', error, stackTrace);
         }
       },
       onDone: () {
@@ -603,9 +580,7 @@ class FfmpegH264Decoder {
     // FFmpeg has not connected yet. Buffer the packets, bounded
     // to avoid unbounded memory consumption during startup.
     if (data.length > _maxPendingBytes) {
-      _log.warning(
-        'Dropping oversized startup packet: ${data.length} bytes.',
-      );
+      _log.warning('Dropping oversized startup packet: ${data.length} bytes.');
       return;
     }
 
@@ -614,9 +589,7 @@ class FfmpegH264Decoder {
       final dropped = _pendingPackets.removeFirst();
       _pendingBytes -= dropped.length;
 
-      _log.warning(
-        'Dropping oldest startup packet: ${dropped.length} bytes.',
-      );
+      _log.warning('Dropping oldest startup packet: ${dropped.length} bytes.');
     }
 
     final copy = Uint8List.fromList(data);
@@ -659,10 +632,7 @@ class FfmpegH264Decoder {
     while (sourceOffset < bytes.length) {
       final available = _frameSize - _frameOffset;
 
-      final count = math.min(
-        available,
-        bytes.length - sourceOffset,
-      );
+      final count = math.min(available, bytes.length - sourceOffset);
 
       _frameBuffer.setRange(
         _frameOffset,
@@ -702,17 +672,11 @@ class FfmpegH264Decoder {
   // ERROR HANDLING
   // ------------------------------------------------------------
 
-  void _reportError(
-    String message, [
-    Object? error,
-    StackTrace? stackTrace,
-  ]) {
+  void _reportError(String message, [Object? error, StackTrace? stackTrace]) {
     _log.severe(message, error, stackTrace);
 
     if (!_disposed && !_errors.isClosed) {
-      _errors.add(
-        error == null ? message : '$message $error',
-      );
+      _errors.add(error == null ? message : '$message $error');
     }
   }
 
@@ -747,11 +711,7 @@ class FfmpegH264Decoder {
       await _inputSocket?.flush();
       await _inputSocket?.close();
     } catch (error, stackTrace) {
-      _log.fine(
-        'Input socket was already closed.',
-        error,
-        stackTrace,
-      );
+      _log.fine('Input socket was already closed.', error, stackTrace);
     }
 
     _inputSocket = null;
@@ -766,11 +726,7 @@ class FfmpegH264Decoder {
     try {
       await _inputServer?.close();
     } catch (error, stackTrace) {
-      _log.fine(
-        'Input server was already closed.',
-        error,
-        stackTrace,
-      );
+      _log.fine('Input server was already closed.', error, stackTrace);
     }
 
     _inputServer = null;
@@ -780,9 +736,7 @@ class FfmpegH264Decoder {
 
     if (finished != null && !finished.isCompleted) {
       try {
-        await finished.future.timeout(
-          const Duration(seconds: 2),
-        );
+        await finished.future.timeout(const Duration(seconds: 2));
       } on TimeoutException {
         final sessionId = _sessionId;
 
@@ -795,11 +749,7 @@ class FfmpegH264Decoder {
           try {
             await FFmpegKit.cancel(sessionId);
           } catch (error, stackTrace) {
-            _log.warning(
-              'Failed to cancel FFmpeg session.',
-              error,
-              stackTrace,
-            );
+            _log.warning('Failed to cancel FFmpeg session.', error, stackTrace);
           }
         }
       }
@@ -817,11 +767,7 @@ class FfmpegH264Decoder {
     try {
       await _outputServer?.close();
     } catch (error, stackTrace) {
-      _log.fine(
-        'Output server was already closed.',
-        error,
-        stackTrace,
-      );
+      _log.fine('Output server was already closed.', error, stackTrace);
     }
 
     _outputServer = null;

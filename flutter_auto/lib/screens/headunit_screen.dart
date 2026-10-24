@@ -156,7 +156,9 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         resolution: _video.resolution,
         decoder: _decoder,
         videoBuilder: widget.videoBuilder,
-        borderRadius: 12,
+        borderRadius: _isFullscreen ? 0 : 12,
+        backgroundColor: Colors.black,
+        showPlaceholder: true,
       ),
     );
   }

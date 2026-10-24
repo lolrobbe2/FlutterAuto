@@ -61,9 +61,13 @@ class _TouchInputDriverState extends State<TouchInputDriver> {
   }
 
   /// Converts local widget coordinates to the touchscreen's pixel space.
+  /// Converts global pointer coordinates into the current display's
+  /// touchscreen coordinate space.
+  ///
+  /// Uses the current RenderBox so fullscreen resizing and transforms
+  /// are reflected in the coordinate mapping.
   _TouchCoordinates? _mapPosition(PointerEvent event) {
-    final renderObject =
-        _surfaceKey.currentContext?.findRenderObject();
+    final renderObject = _surfaceKey.currentContext?.findRenderObject();
 
     if (renderObject is! RenderBox || !renderObject.hasSize) {
       return null;
@@ -75,8 +79,18 @@ class _TouchInputDriverState extends State<TouchInputDriver> {
       return null;
     }
 
+    // Convert using the current render box, not a cached screen size.
+    final position = renderObject.globalToLocal(event.position);
+
+    // Ignore touches outside the actual driver surface.
+    if (position.dx < 0 ||
+        position.dy < 0 ||
+        position.dx >= size.width ||
+        position.dy >= size.height) {
+      return null;
+    }
+
     final input = widget.touchInput;
-    final position = event.localPosition;
 
     final x = (position.dx / size.width * input.width)
         .floor()
@@ -206,10 +220,7 @@ class _TouchInputDriverState extends State<TouchInputDriver> {
 }
 
 class _TouchCoordinates {
-  const _TouchCoordinates({
-    required this.x,
-    required this.y,
-  });
+  const _TouchCoordinates({required this.x, required this.y});
 
   final int x;
   final int y;

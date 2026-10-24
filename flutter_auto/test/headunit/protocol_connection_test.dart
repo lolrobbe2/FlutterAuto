@@ -143,5 +143,61 @@ void main() {
 
       expect(connection.isClosed, isTrue);
     });
+    test(
+      'serializes concurrent sends without corrupting frame order',
+      () async {
+        const int frameCount = 100;
+
+        final List<ProtocolFrame> frames = List<ProtocolFrame>.generate(
+          frameCount,
+          (int index) =>
+              createFrame(<int>[(index >> 8) & 0xFF, index & 0xFF, 0xAA, 0x55]),
+        );
+
+        // Expected stream is all encoded frames concatenated in send order.
+        final List<int> expectedBytes = frames
+            .expand((ProtocolFrame frame) => frame.encode())
+            .toList();
+
+        final Completer<Uint8List> receivedCompleter = Completer<Uint8List>();
+        final List<int> receivedBytes = <int>[];
+
+        final StreamSubscription<List<int>> subscription = serverSocket.listen(
+          (List<int> data) {
+            receivedBytes.addAll(data);
+
+            if (receivedBytes.length >= expectedBytes.length &&
+                !receivedCompleter.isCompleted) {
+              receivedCompleter.complete(
+                Uint8List.fromList(
+                  receivedBytes.sublist(0, expectedBytes.length),
+                ),
+              );
+            }
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            if (!receivedCompleter.isCompleted) {
+              receivedCompleter.completeError(error, stackTrace);
+            }
+          },
+        );
+
+        try {
+          // Schedule every send without waiting for the previous one.
+          // The ProtocolConnection write queue must serialize them.
+          await Future.wait(
+            frames.map((ProtocolFrame frame) => connection.send(frame)),
+          );
+
+          final Uint8List actualBytes = await receivedCompleter.future.timeout(
+            const Duration(seconds: 5),
+          );
+
+          expect(actualBytes, equals(expectedBytes));
+        } finally {
+          await subscription.cancel();
+        }
+      },
+    );
   });
 }

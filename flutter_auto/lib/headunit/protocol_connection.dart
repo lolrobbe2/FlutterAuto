@@ -55,8 +55,10 @@ class ProtocolConnection {
 
   Uint8List _buffer = Uint8List(0);
   bool _isClosed = false;
-  Future<void>? _closeFuture;
+  bool _isClosing = false;
 
+  Future<void>? _closeFuture;
+  Future<void> _sendQueue = Future<void>.value();
   Stream<ProtocolFrame> get frames => _frameController.stream;
 
   /// Complete protocol messages assembled from frames.
@@ -138,17 +140,41 @@ class ProtocolConnection {
     }
   }
 
-  Future<void> send(ProtocolFrame frame) async {
-    if (_isClosed) {
-      throw StateError('Cannot send data on a closed connection.');
+  Future<void> send(ProtocolFrame frame) {
+    if (_isClosed || _isClosing) {
+      return Future<void>.error(
+        StateError('Cannot send data on a closed connection.'),
+      );
     }
 
+    // Encode before queuing so each operation owns its immutable bytes.
     final Uint8List encoded = frame.encode();
 
     _log.fine('AA TX (${encoded.length} bytes): ${_formatHex(encoded)}');
 
-    _socket.add(encoded);
-    await _socket.flush();
+    // Queue this write behind all previous writes on this connection.
+    final Future<void> operation = _sendQueue.then<void>((_) async {
+      // The connection may have closed while this write waited in the queue.
+      if (_isClosed) {
+        throw StateError('Cannot send data on a closed connection.');
+      }
+
+      _socket.add(encoded);
+
+      // This must complete before the next queued write starts.
+      await _socket.flush();
+    });
+
+    // Keep the queue usable if an individual operation fails.
+    // The original operation still propagates its error to its caller.
+    _sendQueue = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {
+        _log.warning('Queued socket write failed.', error, stackTrace);
+      },
+    );
+
+    return operation;
   }
 
   void _onError(Object error, StackTrace stackTrace) {
@@ -176,25 +202,32 @@ class ProtocolConnection {
   }
 
   Future<void> close() {
-    final Future<void>? existingClose = _closeFuture;
+    final existingClose = _closeFuture;
 
     if (existingClose != null) {
       return existingClose;
     }
+
+    // Reject new writes immediately, while allowing already-queued writes
+    // to finish before closing the socket.
+    _isClosing = true;
 
     _closeFuture = _closeInternal();
     return _closeFuture!;
   }
 
   Future<void> _closeInternal() async {
-    if (!_isClosed) {
-      await _subscription.cancel();
+    if (_isClosed) return;
 
-      try {
-        await _socket.close();
-      } finally {
-        _finish();
-      }
+    await _subscription.cancel();
+
+    try {
+      // Wait until all previously accepted writes have completed.
+      await _sendQueue;
+
+      await _socket.close();
+    } finally {
+      _finish();
     }
   }
 
