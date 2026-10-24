@@ -380,71 +380,6 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
     );
   }
 
-  Widget _buildVideoPlaceholder(ThemeData theme) {
-    final colors = theme.colorScheme;
-
-    final String subtitle;
-
-    if (_decoderError != null) {
-      subtitle = 'Decoder failed: $_decoderError';
-    } else if (_packetCount > 0 && _decoder.outputFrameCount > 0) {
-      subtitle = 'Video frames decoded; renderer not attached';
-    } else if (_packetCount > 0) {
-      subtitle = 'Receiving encoded video; waiting for decoded frames';
-    } else if (_sessionState != HeadunitSessionState.connected) {
-      subtitle = 'Waiting for an active Android Auto session';
-    } else if (!_video.isSetup) {
-      subtitle = 'Waiting for video AV setup';
-    } else if (!_video.isStreaming) {
-      subtitle = 'Video configured; waiting for stream start';
-    } else {
-      subtitle = 'Stream started; waiting for video packets';
-    }
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.ondemand_video,
-              size: 56,
-              color: colors.onSurface.withValues(alpha: 0.8),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Video output',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
-            ),
-            if (_packetCount > 0) ...[
-              const SizedBox(height: 12),
-              Text(
-                '$_packetCount packets · ${_formatBytes(_totalBytes)}',
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              'FFmpeg input: ${_decoder.inputPacketCount} · '
-              'output frames: ${_decoder.outputFrameCount}',
-              style: const TextStyle(color: Colors.white54, fontSize: 11),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Color _sessionColor(ColorScheme colors) {
     switch (_sessionState) {
@@ -461,19 +396,13 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
     }
   }
 
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
-  }
 }
 
 // ==================================================================
 // CONNECTION CARD
 // ==================================================================
 
+// ignore: unused_element
 class _ConnectionCard extends StatelessWidget {
   const _ConnectionCard({
     required this.deviceSerial,

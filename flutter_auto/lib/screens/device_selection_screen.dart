@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_auto/screens/adb_terminal_screen.dart';
 import 'package:flutter_auto/screens/headunit_screen.dart';
 import 'package:flutter_auto_core/flutter_auto_core.dart';
-import 'package:flutter_auto_core/services/adb_manager.dart';
+
 
 class DeviceSelectionScreen extends StatefulWidget {
   const DeviceSelectionScreen({super.key});

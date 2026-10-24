@@ -1,15 +1,18 @@
-import 'package:flutter/services.dart';
+typedef PemProvider = Future<String> Function();
 
+/// Loads the TLS certificate and private key from an application-provided
+/// source, without requiring either credential to be bundled as an asset.
 class AssetIdentityLoader {
-  static const String _certificatePath = 'assets/security/headunit-cert.pem';
+  const AssetIdentityLoader({
+    required PemProvider certificateProvider,
+    required PemProvider privateKeyProvider,
+  })  : _certificateProvider = certificateProvider,
+        _privateKeyProvider = privateKeyProvider;
 
-  static const String _privateKeyPath = 'assets/security/headunit-key.pem';
+  final PemProvider _certificateProvider;
+  final PemProvider _privateKeyProvider;
 
-  Future<String> loadCertificatePem() {
-    return rootBundle.loadString(_certificatePath);
-  }
+  Future<String> loadCertificatePem() => _certificateProvider();
 
-  Future<String> loadPrivateKeyPem() {
-    return rootBundle.loadString(_privateKeyPath);
-  }
+  Future<String> loadPrivateKeyPem() => _privateKeyProvider();
 }

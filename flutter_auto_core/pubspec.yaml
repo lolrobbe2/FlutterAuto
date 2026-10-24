@@ -34,5 +34,9 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/security/headunit-key.pem
-    - assets/security/headunit-cert.pem
+    - path: assets/security/headunit-cert.pem
+      flavors:
+        - development
+    - path: assets/security/headunit-key.pem
+      flavors:
+        - development
