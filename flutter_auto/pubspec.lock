@@ -2,7 +2,7 @@
 # See https://dart.dev/tools/pub/glossary#lockfile
 packages:
   archive:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: archive
       sha256: "0d58d1fa1fddf6588251ccf2819f3fb3b6d0452c1b2813ac7413a05592bfbefe"
@@ -98,7 +98,7 @@ packages:
     source: hosted
     version: "0.1.2"
   ffmpeg_kit_flutter_new_video:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: ffmpeg_kit_flutter_new_video
       sha256: "8513146cb36b0dbc1217c20aee5039a37e1d7db2c7c04c414be6caf53632e2f6"
@@ -126,6 +126,13 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_auto_core:
+    dependency: "direct main"
+    description:
+      path: "../flutter_auto_core"
+      relative: true
+    source: path
+    version: "0.1.0"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -313,7 +320,7 @@ packages:
     source: hosted
     version: "9.5.0"
   openssl_bindings:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: openssl_bindings
       sha256: b940e82aede307af615e64f317906fccfdca8713b9a5b8bd135a7204388acd78
@@ -409,7 +416,7 @@ packages:
     source: hosted
     version: "6.5.2"
   protobuf:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: protobuf
       sha256: "13b6717366aa7ec3792dd62c19c7d33a785708224365f2db23c5ca01f1c1a0f2"
@@ -542,5 +549,5 @@ packages:
     source: hosted
     version: "3.1.4"
 sdks:
-  dart: ">=3.12.2 <4.0.0"
+  dart: ">=3.13.4 <4.0.0"
   flutter: ">=3.38.4"

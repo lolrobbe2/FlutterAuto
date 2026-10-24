@@ -1,0 +1,29 @@
+// Generated barrel export for OAA protocol files in this folder.
+
+export '../../generated/oaa/bluetooth/BluetoothAuthenticationDataMessage.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothAuthenticationDataMessage.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothAuthenticationDataMessage.pbjson.dart';
+export '../../generated/oaa/bluetooth/BluetoothAuthenticationResultMessage.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothAuthenticationResultMessage.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothAuthenticationResultMessage.pbjson.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelConfigData.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelConfigData.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelConfigData.pbjson.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelData.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelData.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelData.pbjson.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelMessageIdsEnum.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelMessageIdsEnum.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothChannelMessageIdsEnum.pbjson.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingMethodEnum.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingMethodEnum.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingMethodEnum.pbjson.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingRequestMessage.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingRequestMessage.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingRequestMessage.pbjson.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingResponseMessage.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingResponseMessage.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingResponseMessage.pbjson.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingStatusEnum.pb.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingStatusEnum.pbenum.dart';
+export '../../generated/oaa/bluetooth/BluetoothPairingStatusEnum.pbjson.dart';

@@ -4,7 +4,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_auto/command_line.dart';
 import 'package:flutter_auto/screens/device_selection_screen.dart';
-import 'package:flutter_auto/services/adb_manager.dart';
+import 'package:flutter_auto_core/services/adb_manager.dart';
 import 'package:logging/logging.dart';
 
 final Logger _log = Logger('Main');

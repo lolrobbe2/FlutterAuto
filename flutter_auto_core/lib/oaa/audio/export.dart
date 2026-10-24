@@ -1,0 +1,32 @@
+// Generated barrel export for OAA protocol files in this folder.
+
+export '../../generated/oaa/audio/AudioConfigData.pb.dart';
+export '../../generated/oaa/audio/AudioConfigData.pbenum.dart';
+export '../../generated/oaa/audio/AudioConfigData.pbjson.dart';
+export '../../generated/oaa/audio/AudioFocusChannelData.pb.dart';
+export '../../generated/oaa/audio/AudioFocusChannelData.pbenum.dart';
+export '../../generated/oaa/audio/AudioFocusChannelData.pbjson.dart';
+export '../../generated/oaa/audio/AudioFocusRequestMessage.pb.dart';
+export '../../generated/oaa/audio/AudioFocusRequestMessage.pbenum.dart';
+export '../../generated/oaa/audio/AudioFocusRequestMessage.pbjson.dart';
+export '../../generated/oaa/audio/AudioFocusResponseMessage.pb.dart';
+export '../../generated/oaa/audio/AudioFocusResponseMessage.pbenum.dart';
+export '../../generated/oaa/audio/AudioFocusResponseMessage.pbjson.dart';
+export '../../generated/oaa/audio/AudioFocusStateEnum.pb.dart';
+export '../../generated/oaa/audio/AudioFocusStateEnum.pbenum.dart';
+export '../../generated/oaa/audio/AudioFocusStateEnum.pbjson.dart';
+export '../../generated/oaa/audio/AudioFocusStateMessage.pb.dart';
+export '../../generated/oaa/audio/AudioFocusStateMessage.pbenum.dart';
+export '../../generated/oaa/audio/AudioFocusStateMessage.pbjson.dart';
+export '../../generated/oaa/audio/AudioFocusTypeEnum.pb.dart';
+export '../../generated/oaa/audio/AudioFocusTypeEnum.pbenum.dart';
+export '../../generated/oaa/audio/AudioFocusTypeEnum.pbjson.dart';
+export '../../generated/oaa/audio/AudioStreamTypeEnum.pb.dart';
+export '../../generated/oaa/audio/AudioStreamTypeEnum.pbenum.dart';
+export '../../generated/oaa/audio/AudioStreamTypeEnum.pbjson.dart';
+export '../../generated/oaa/audio/AudioStreamTypeMessage.pb.dart';
+export '../../generated/oaa/audio/AudioStreamTypeMessage.pbenum.dart';
+export '../../generated/oaa/audio/AudioStreamTypeMessage.pbjson.dart';
+export '../../generated/oaa/audio/AudioTypeEnum.pb.dart';
+export '../../generated/oaa/audio/AudioTypeEnum.pbenum.dart';
+export '../../generated/oaa/audio/AudioTypeEnum.pbjson.dart';

@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_auto/headunit/drivers/input/touch_driver.dart';
-import 'package:flutter_auto/headunit/headunit_session.dart';
-import 'package:flutter_auto/headunit/input/touch_input.dart';
-import 'package:flutter_auto/headunit/service/video_service.dart';
-import 'package:flutter_auto/headunit/video/ffmpeg_h264_decoder.dart';
-import 'package:flutter_auto/headunit/video/head_unit_view.dart';
-import 'package:flutter_auto/headunit/video/video_message_id.dart';
+import '../../../flutter_auto_core/lib/headunit/drivers/input/touch_driver.dart';
+import '../../../flutter_auto_core/lib/headunit/headunit_session.dart';
+import '../../../flutter_auto_core/lib/headunit/input/touch_input.dart';
+import '../../../flutter_auto_core/lib/headunit/service/video_service.dart';
+import '../../../flutter_auto_core/lib/headunit/video/ffmpeg_h264_decoder.dart';
+import '../../../flutter_auto_core/lib/headunit/video/head_unit_view.dart';
+import '../../../flutter_auto_core/lib/headunit/video/video_message_id.dart';
 import 'package:logging/logging.dart';
 
 class HeadunitServerScreen extends StatefulWidget {
@@ -278,7 +278,10 @@ class _HeadunitServerScreenState extends State<HeadunitServerScreen> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            ColoredBox(color: Colors.black, child: _buildVideoSurface(theme)),
+            // Let the video surface calculate its own aspect-ratio-preserving
+            // size. The Scaffold background fills the unused area with black.
+            Center(child: _buildVideoSurface(theme)),
+
             Positioned(
               top: 8,
               right: 8,

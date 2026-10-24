@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_auto/services/adb_manager.dart';
+import 'package:flutter_auto_core/services/adb_manager.dart';
 import 'package:flutter_auto/services/terminal/terminal_command.dart';
 
 class AdbTerminalScreen extends StatefulWidget {
