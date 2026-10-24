@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_auto_core/headunit/transport/protocol_transport.dart';
+import 'package:flutter_auto_core/headunit/transport/usb_protocol_transport.dart';
+
 import '../generated/oaa/video/VideoFPSEnum.pbenum.dart';
 import '../generated/oaa/video/VideoResolutionEnum.pbenum.dart';
 import 'input/input_base.dart';
@@ -18,11 +21,14 @@ import 'service/sensor_service.dart';
 import 'service/system_audio_service.dart';
 import 'service/video_service.dart';
 import 'service/voice_service.dart';
+
 import 'package:flutter_auto_core/services/adb_manager.dart';
 import 'package:logging/logging.dart';
 
 import 'protocol_connection.dart';
 import 'version_handshake.dart';
+
+typedef HeadunitTransportFactory = Future<ProtocolTransport> Function();
 
 enum HeadunitSessionState {
   disconnected,
@@ -84,6 +90,7 @@ class HeadunitSession {
     this.minorVersion = 1,
     this.configureAdb = true,
     this.connectionTimeout = const Duration(seconds: 10),
+    this.transportFactory,
     VideoResolution_Enum videoResolution = VideoResolution_Enum.VIDEO_800x480,
     VideoFPS_Enum videoFps = VideoFPS_Enum.x30_,
     int videoDpi = 140,
@@ -96,8 +103,71 @@ class HeadunitSession {
        ),
        inputService = InputService(inputs: inputs);
 
-  final Logger _log = Logger('HeadunitSession');
+  /// Creates a session using TCP, optionally configuring ADB forwarding.
+  factory HeadunitSession.adb({
+    AdbManager? adbManager,
+    HeadUnitIdentity? identity,
+    String host = '127.0.0.1',
+    int port = 5277,
+    int majorVersion = 1,
+    int minorVersion = 1,
+    bool configureAdb = true,
+    Duration connectionTimeout = const Duration(seconds: 10),
+    VideoResolution_Enum videoResolution = VideoResolution_Enum.VIDEO_800x480,
+    VideoFPS_Enum videoFps = VideoFPS_Enum.x30_,
+    int videoDpi = 140,
+    List<InputBase> inputs = const [],
+  }) {
+    return HeadunitSession(
+      adbManager: adbManager ?? AdbManager(),
+      identity: identity,
+      host: host,
+      port: port,
+      majorVersion: majorVersion,
+      minorVersion: minorVersion,
+      configureAdb: configureAdb,
+      connectionTimeout: connectionTimeout,
+      videoResolution: videoResolution,
+      videoFps: videoFps,
+      videoDpi: videoDpi,
+      inputs: inputs,
+    );
+  }
 
+  /// Creates a session using native Android Open Accessory USB transport.
+  factory HeadunitSession.usb({
+    AdbManager? adbManager,
+    HeadUnitIdentity? identity,
+    int majorVersion = 1,
+    int minorVersion = 1,
+    Duration connectionTimeout = const Duration(seconds: 10),
+    Duration usbStartupTimeout = const Duration(seconds: 35),
+    String? usbLibraryPath,
+    VideoResolution_Enum videoResolution = VideoResolution_Enum.VIDEO_800x480,
+    VideoFPS_Enum videoFps = VideoFPS_Enum.x30_,
+    int videoDpi = 140,
+    List<InputBase> inputs = const [],
+  }) {
+    return HeadunitSession(
+      adbManager: adbManager ?? AdbManager(),
+      identity: identity,
+      majorVersion: majorVersion,
+      minorVersion: minorVersion,
+      configureAdb: false,
+      connectionTimeout: connectionTimeout,
+      transportFactory: () => LibusbAoaProtocolTransport.connect(
+        libraryPath: usbLibraryPath,
+        startupTimeout: usbStartupTimeout,
+      ),
+      videoResolution: videoResolution,
+      videoFps: videoFps,
+      videoDpi: videoDpi,
+      inputs: inputs,
+    );
+  }
+
+  final Logger _log = Logger('HeadunitSession');
+  final HeadunitTransportFactory? transportFactory;
   final HeadUnitIdentity identity;
   final AdbManager adbManager;
 
@@ -167,13 +237,26 @@ class HeadunitSession {
         await adbManager.initializeAndroidAutoLink();
       }
 
-      final socket = await Socket.connect(
-        host,
-        port,
-        timeout: connectionTimeout,
-      );
+      final ProtocolConnection connection;
+      final factory = transportFactory;
 
-      final connection = ProtocolConnection(socket);
+      if (factory != null) {
+        _log.info('Connecting using USB transport...');
+
+        final transport = await factory();
+        connection = ProtocolConnection.fromTransport(transport);
+      } else {
+        _log.info('Connecting using TCP at $host:$port...');
+
+        final socket = await Socket.connect(
+          host,
+          port,
+          timeout: connectionTimeout,
+        );
+
+        connection = ProtocolConnection(socket);
+      }
+
       final router = MessageRouter(connection);
       final sender = ProtocolMessageSender(connection);
 

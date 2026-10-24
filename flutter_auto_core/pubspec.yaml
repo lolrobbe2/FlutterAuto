@@ -17,13 +17,13 @@ dependencies:
   protobuf: ^6.1.0
   fixnum: ^1.1.1
   archive: ^4.5.2
-
   # Transport, security and utilities
   logging: ^1.3.0
   openssl_bindings: ^1.3.0
   path: ^1.9.1
   http: ^1.6.0
   ffi: ^2.2.0
+  dart_libusb: ^1.0.1
 
 dev_dependencies:
   flutter_test:

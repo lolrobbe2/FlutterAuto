@@ -57,6 +57,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
+  dart_libusb:
+    dependency: transitive
+    description:
+      name: dart_libusb
+      sha256: "6d15c7b788aad3353b23a3fc4c746a761f860053be936fd61f72d221256ef02e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   fake_async:
     dependency: transitive
     description:

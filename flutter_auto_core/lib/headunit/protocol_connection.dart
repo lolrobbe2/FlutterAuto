@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter_auto_core/headunit/transport/protocol_transport.dart';
+import 'package:flutter_auto_core/headunit/transport/socket_protocol_transport.dart';
 import 'package:logging/logging.dart';
 
 import 'message_assembler.dart';
@@ -9,17 +11,14 @@ import 'protocol_frame.dart';
 import 'protocol_message.dart';
 
 class ProtocolConnection {
-  void setFramePayloadDecryptor(FramePayloadDecryptor? decryptor) {
-    if (_isClosed) {
-      throw StateError('Cannot configure a closed protocol connection.');
-    }
+  /// Backwards-compatible constructor for existing TCP callers.
+  ProtocolConnection(Socket socket)
+      : this.fromTransport(SocketProtocolTransport(socket));
 
-    _framePayloadDecryptor = decryptor;
-  }
-
-  static final Logger _log = Logger('ProtocolConnection');
-  ProtocolConnection(Socket socket) : _socket = socket {
-    _subscription = _socket.listen(
+  /// Creates a connection over any supported byte transport.
+  ProtocolConnection.fromTransport(ProtocolTransport transport)
+      : _transport = transport {
+    _subscription = _transport.input.listen(
       _onData,
       onError: _onError,
       onDone: _onDone,
@@ -27,7 +26,9 @@ class ProtocolConnection {
     );
   }
 
-  final Socket _socket;
+  static final Logger _log = Logger('ProtocolConnection');
+
+  final ProtocolTransport _transport;
 
   final StreamController<ProtocolFrame> _frameController =
       StreamController<ProtocolFrame>();
@@ -38,7 +39,8 @@ class ProtocolConnection {
 
   FramePayloadDecryptor? _framePayloadDecryptor;
 
-  late final Stream<ProtocolMessage> _messages = const MessageAssembler().bind(
+  late final Stream<ProtocolMessage> _messages =
+      const MessageAssembler().bind(
     _frameController.stream,
     decryptEncryptedPayload: (Uint8List payload) async {
       final decryptor = _framePayloadDecryptor;
@@ -59,6 +61,7 @@ class ProtocolConnection {
 
   Future<void>? _closeFuture;
   Future<void> _sendQueue = Future<void>.value();
+
   Stream<ProtocolFrame> get frames => _frameController.stream;
 
   /// Complete protocol messages assembled from frames.
@@ -72,6 +75,14 @@ class ProtocolConnection {
 
   static const int _baseHeaderSize = 4;
   static const int _firstHeaderSize = 8;
+
+  void setFramePayloadDecryptor(FramePayloadDecryptor? decryptor) {
+    if (_isClosed) {
+      throw StateError('Cannot configure a closed protocol connection.');
+    }
+
+    _framePayloadDecryptor = decryptor;
+  }
 
   void _onData(List<int> data) {
     if (_isClosed || data.isEmpty) {
@@ -132,6 +143,7 @@ class ProtocolConnection {
 
       final ProtocolFrame frame = ProtocolFrame.decode(frameBytes);
       _frameController.add(frame);
+
       offset += frameLength;
     }
 
@@ -152,17 +164,13 @@ class ProtocolConnection {
 
     _log.fine('AA TX (${encoded.length} bytes): ${_formatHex(encoded)}');
 
-    // Queue this write behind all previous writes on this connection.
+    // Queue each transport write behind the previous one.
     final Future<void> operation = _sendQueue.then<void>((_) async {
-      // The connection may have closed while this write waited in the queue.
       if (_isClosed) {
         throw StateError('Cannot send data on a closed connection.');
       }
 
-      _socket.add(encoded);
-
-      // This must complete before the next queued write starts.
-      await _socket.flush();
+      await _transport.write(encoded);
     });
 
     // Keep the queue usable if an individual operation fails.
@@ -170,7 +178,7 @@ class ProtocolConnection {
     _sendQueue = operation.then<void>(
       (_) {},
       onError: (Object error, StackTrace stackTrace) {
-        _log.warning('Queued socket write failed.', error, stackTrace);
+        _log.warning('Queued transport write failed.', error, stackTrace);
       },
     );
 
@@ -182,7 +190,7 @@ class ProtocolConnection {
   }
 
   void _onDone() {
-    _log.info('AA TCP: remote socket closed');
+    _log.info('AA transport: incoming stream closed');
     _finish();
   }
 
@@ -197,8 +205,30 @@ class ProtocolConnection {
       _frameController.addError(error, stackTrace);
     }
 
-    _socket.destroy();
+    unawaited(_abortTransportSafely());
+    unawaited(_cancelSubscriptionSafely());
+
     _finish();
+  }
+
+  Future<void> _abortTransportSafely() async {
+    try {
+      await _transport.abort();
+    } catch (error, stackTrace) {
+      _log.warning('Failed to abort the transport.', error, stackTrace);
+    }
+  }
+
+  Future<void> _cancelSubscriptionSafely() async {
+    try {
+      await _subscription.cancel();
+    } catch (error, stackTrace) {
+      _log.warning(
+        'Failed to cancel the transport subscription.',
+        error,
+        stackTrace,
+      );
+    }
   }
 
   Future<void> close() {
@@ -209,7 +239,7 @@ class ProtocolConnection {
     }
 
     // Reject new writes immediately, while allowing already-queued writes
-    // to finish before closing the socket.
+    // to finish before closing the transport.
     _isClosing = true;
 
     _closeFuture = _closeInternal();
@@ -219,13 +249,13 @@ class ProtocolConnection {
   Future<void> _closeInternal() async {
     if (_isClosed) return;
 
-    await _subscription.cancel();
-
     try {
+      await _subscription.cancel();
+
       // Wait until all previously accepted writes have completed.
       await _sendQueue;
 
-      await _socket.close();
+      await _transport.close();
     } finally {
       _finish();
     }
@@ -240,7 +270,7 @@ class ProtocolConnection {
     _buffer = Uint8List(0);
 
     if (!_frameController.isClosed) {
-      _frameController.close();
+      unawaited(_frameController.close());
     }
 
     if (!_doneCompleter.isCompleted) {

@@ -45,8 +45,9 @@ class _HeadunitAppState extends State<HeadunitApp> {
   HeadunitSession? _session;
   String? _deviceSerial;
   String? _error;
-
+  bool _usingUsb = false;
   bool _starting = true;
+  String? _selectedAdbSerial;
 
   @override
   void initState() {
@@ -54,73 +55,97 @@ class _HeadunitAppState extends State<HeadunitApp> {
     unawaited(_startProjection());
   }
 
+  Future<HeadunitSession> _createAdbSession() async {
+    _log.info('Starting ADB server...');
+    await _adbManager.startServer();
+
+    _log.info('Searching for authorized ADB devices...');
+    final devices = await _adbManager.listDevices();
+
+    final authorized = devices.where((device) => device.isAuthorized).toList();
+
+    if (authorized.isEmpty) {
+      throw Exception(
+        'USB connection failed and no authorized ADB device was found.',
+      );
+    }
+
+    final device = authorized.first;
+    _selectedAdbSerial = device.serial;
+
+    _log.info('Selected ADB device: ${device.serial}');
+
+    final result = await _adbManager.executeCommand([
+      '-s',
+      device.serial,
+      'forward',
+      'tcp:5277',
+      'tcp:5277',
+    ]);
+
+    if (result.exitCode != 0) {
+      throw Exception('ADB port forwarding failed: ${result.stderr}');
+    }
+
+    return HeadunitSession.adb(
+      adbManager: _adbManager,
+      host: InternetAddress.loopbackIPv4.address,
+      port: 5277,
+      configureAdb: false,
+      videoResolution: VideoResolution_Enum.VIDEO_800x480,
+    );
+  }
+
   Future<void> _startProjection() async {
+    HeadunitSession? session;
     String? selectedSerial;
+    bool usingUsb = false;
 
     try {
-      _log.info('Starting ADB server...');
-      await _adbManager.startServer();
+      // 1. Try native USB transport first.
+      _log.info('Trying Android Auto over USB...');
 
-      _log.info('Searching for authorized ADB devices...');
-      final List<AdbDevice> devices = await _adbManager.listDevices();
-
-      // Select the FIRST authorized device in the ADB device list.
-      final List<AdbDevice> authorizedDevices = devices
-          .where((device) => device.isAuthorized)
-          .toList();
-
-      if (authorizedDevices.isEmpty) {
-        throw Exception(
-          'No authorized Android device found.\n\n'
-          'Connect your Android device, enable USB or wireless debugging, '
-          'and accept the debugging authorization prompt.',
+      try {
+        session = HeadunitSession.usb(
+          adbManager: _adbManager,
+          videoResolution: VideoResolution_Enum.VIDEO_800x480,
         );
+
+        // The session connector will call connect() after the screen builds.
+        // Establish the USB transport inside connect(), not here.
+        usingUsb = true;
+        _log.info('USB session created.');
+      } catch (error, stackTrace) {
+        _log.warning(
+          'Could not create USB session; falling back to ADB.',
+          error,
+          stackTrace,
+        );
+
+        await session?.dispose();
+        session = null;
       }
 
-      final AdbDevice device = authorizedDevices.first;
-      selectedSerial = device.serial;
-
-      _log.info('Selected device: ${device.serial}');
-
-      // Forward the port for the selected device, even when multiple
-      // Android devices are connected.
-      _log.info('Forwarding port 5277 for ${device.serial}...');
-
-      final ProcessResult forwardResult =
-          await _adbManager.executeCommand([
-        '-s',
-        device.serial,
-        'forward',
-        'tcp:5277',
-        'tcp:5277',
-      ]);
-
-      if (forwardResult.exitCode != 0) {
-        throw Exception(
-          'Failed to forward port 5277 for ${device.serial}:\n'
-          '${forwardResult.stderr}',
-        );
+      // Note: HeadunitSession.usb() creates a session before it actually
+      // opens USB. If USB opening fails during session.connect(), the
+      // connector below handles the fallback.
+      if (session == null) {
+        session = await _createAdbSession();
+        selectedSerial = _selectedAdbSerial;
       }
-
-      _log.info('Port forwarding configured.');
-
-      final HeadunitSession session = HeadunitSession(
-        adbManager: _adbManager,
-        host: InternetAddress.loopbackIPv4.address,
-        port: 5277,
-        configureAdb: false,
-        videoResolution: VideoResolution_Enum.VIDEO_800x480,
-      );
 
       if (!mounted) {
         await session.dispose();
-        await _removePortForward(device.serial);
+        if (selectedSerial != null) {
+          await _removePortForward(selectedSerial);
+        }
         return;
       }
 
       setState(() {
         _session = session;
-        _deviceSerial = device.serial;
+        _deviceSerial = selectedSerial ?? (usingUsb ? 'USB' : null);
+        _usingUsb = usingUsb;
         _starting = false;
       });
     } catch (error, stackTrace) {
@@ -130,7 +155,8 @@ class _HeadunitAppState extends State<HeadunitApp> {
         stackTrace,
       );
 
-      // Clean up the forward if startup failed after selecting a device.
+      await session?.dispose();
+
       if (selectedSerial != null) {
         await _removePortForward(selectedSerial);
       }
@@ -171,7 +197,11 @@ class _HeadunitAppState extends State<HeadunitApp> {
       try {
         await session.dispose();
       } catch (error, stackTrace) {
-        _log.warning('Failed to dispose the headunit session.', error, stackTrace);
+        _log.warning(
+          'Failed to dispose the headunit session.',
+          error,
+          stackTrace,
+        );
       }
     }
 
@@ -267,9 +297,27 @@ class _SessionConnectorState extends State<_SessionConnector> {
       await widget.session.connect();
       _log.info('Headunit session connected.');
     } catch (error, stackTrace) {
-      _log.severe('Failed to connect the headunit session.', error, stackTrace);
+      _log.warning(
+        'Initial connection failed; attempting ADB fallback.',
+        error,
+        stackTrace,
+      );
 
       if (!mounted) return;
+
+      // A USB session failed. Ask the parent app to perform the ADB fallback.
+      if (widget.deviceSerial == 'USB') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => const _StatusScreen(
+              message: 'USB connection failed',
+              details: 'Restarting with ADB fallback is required.',
+              showProgress: false,
+            ),
+          ),
+        );
+        return;
+      }
 
       setState(() {
         _connectionError = error.toString();
@@ -327,10 +375,7 @@ class _StatusScreen extends StatelessWidget {
                 Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 20),
                 ),
                 if (details != null) ...[
                   const SizedBox(height: 16),
