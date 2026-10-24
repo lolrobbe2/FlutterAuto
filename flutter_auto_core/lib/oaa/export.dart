@@ -3,7 +3,14 @@
 export 'audio/export.dart';
 export 'av/export.dart';
 export 'bluetooth/export.dart';
-export 'control/export.dart' hide WifiAccessPointType, WifiAccessPointType$json;
+export 'control/export.dart'
+    hide
+        WifiAccessPointType,
+        wifiAccessPointTypeDescriptor,
+        WifiSecurityMode,
+        WifiSecurityMode$json,
+        wifiSecurityModeDescriptor,
+        WifiAccessPointType$json;
 export 'carintent/export.dart';
 export 'common/export.dart';
 export 'generic/export.dart';

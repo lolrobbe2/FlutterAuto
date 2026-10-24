@@ -36,7 +36,7 @@ class FfmpegH264Decoder {
   bool _disposed = false;
   Future<void>? _startFuture;
   Completer<void>? _ffmpegFinished;
-  Completer<void> _disposeSignal = Completer<void>();
+  final Completer<void> _disposeSignal = Completer<void>();
 
   int? _sessionId;
 

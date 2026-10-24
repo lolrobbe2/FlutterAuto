@@ -21,6 +21,7 @@ class SpeechAudioService extends ChannelService {
 
   SpeechAudioService() : super(channelId: defaultChannelId);
 
+  @override
   ChannelDescriptor buildDescriptor(int channelId) {
     return ChannelDescriptor()
       ..channelId = channelId
@@ -30,6 +31,7 @@ class SpeechAudioService extends ChannelService {
         ..audioConfigs.add(_voiceAudioConfig()));
   }
 
+  @override
   Future<void> dispose() async {}
   @override
   Future<void> handleMessage(ProtocolMessage message) async {

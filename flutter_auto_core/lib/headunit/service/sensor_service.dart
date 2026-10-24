@@ -27,7 +27,9 @@ class SensorService extends ChannelService {
         ]));
   }
 
+  @override
   Future<void> dispose() async {}
+  
   @override
   Future<void> handleMessage(ProtocolMessage message) async {
     final id = messageIdOf(message);

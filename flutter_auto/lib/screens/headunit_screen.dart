@@ -2,13 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../flutter_auto_core/lib/headunit/drivers/input/touch_driver.dart';
-import '../../../flutter_auto_core/lib/headunit/headunit_session.dart';
-import '../../../flutter_auto_core/lib/headunit/input/touch_input.dart';
-import '../../../flutter_auto_core/lib/headunit/service/video_service.dart';
-import '../../../flutter_auto_core/lib/headunit/video/ffmpeg_h264_decoder.dart';
-import '../../../flutter_auto_core/lib/headunit/video/head_unit_view.dart';
-import '../../../flutter_auto_core/lib/headunit/video/video_message_id.dart';
+import 'package:flutter_auto_core/flutter_auto_core.dart';
 import 'package:logging/logging.dart';
 
 class HeadunitServerScreen extends StatefulWidget {

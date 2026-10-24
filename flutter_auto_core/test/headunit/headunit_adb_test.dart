@@ -2,7 +2,6 @@
 import 'dart:io';
 
 import 'package:flutter_auto_core/flutter_auto_core.dart';
-import 'package:flutter_auto_core/services/adb_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 

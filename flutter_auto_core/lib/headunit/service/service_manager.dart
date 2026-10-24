@@ -25,22 +25,21 @@ class RegisteredService {
 
 class ServiceManager {
   ServiceManager({
-    required MessageRouter router,
-    required ControlPayloadSender sendControlPayload,
+    required this._router,
+    required this.sendControlPayload,
     this.headUnitName = 'FlutterAuto',
     this.carModel = 'Android Auto Emulator',
     this.headunitManufacturer = 'FlutterAuto',
     this.headunitModel = 'FlutterAuto-01',
     this.swVersion = '1.0.0',
-  }) : _router = router,
-       _sendControlPayload = sendControlPayload;
+  });
 
   static const int controlChannel = 0;
   static const int serviceDiscoveryRequestId = 0x0005;
   static const int serviceDiscoveryResponseId = 0x0006;
 
   final MessageRouter _router;
-  final ControlPayloadSender _sendControlPayload;
+  final ControlPayloadSender sendControlPayload;
   final Logger _log = Logger('ServiceManager');
 
   // Head-unit metadata advertised in SERVICE_DISCOVERY_RESPONSE.
@@ -226,7 +225,7 @@ class ServiceManager {
     _log.info('Full payload hex: ${hex(payload)}');
     _log.info('================================================');
 
-    await _sendControlPayload(payload);
+    await sendControlPayload(payload);
 
     // Only mark discovery complete after the send succeeds.
     localDiscoveryResponse = response;

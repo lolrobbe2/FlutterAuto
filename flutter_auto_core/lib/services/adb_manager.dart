@@ -88,9 +88,6 @@ class AdbManager {
     } on IOException catch (error, stackTrace) {
       _log.severe('Failed to execute ADB command.', error, stackTrace);
       throw Exception('Failed to execute ADB: $error');
-    } on ProcessException catch (error, stackTrace) {
-      _log.severe('Failed to start ADB process.', error, stackTrace);
-      throw Exception('Failed to start ADB: $error');
     } on Exception {
       rethrow;
     }
