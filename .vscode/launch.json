@@ -43,6 +43,26 @@
             "request": "launch",
             "type": "dart",
             "flutterMode": "release"
-        }
+        },
+        {
+            "name": "flutter_auto_headless",
+            "cwd": "flutter_auto_headless",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "flutter_auto_headless (profile mode)",
+            "cwd": "flutter_auto_headless",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "flutter_auto_headless (release mode)",
+            "cwd": "flutter_auto_headless",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        },
     ]
 }
