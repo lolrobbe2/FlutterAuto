@@ -4,10 +4,9 @@ typedef PemProvider = Future<String> Function();
 /// source, without requiring either credential to be bundled as an asset.
 class AssetIdentityLoader {
   const AssetIdentityLoader({
-    required PemProvider certificateProvider,
+    required this._certificateProvider,
     required PemProvider privateKeyProvider,
-  })  : _certificateProvider = certificateProvider,
-        _privateKeyProvider = privateKeyProvider;
+  })  : _privateKeyProvider = privateKeyProvider;
 
   final PemProvider _certificateProvider;
   final PemProvider _privateKeyProvider;

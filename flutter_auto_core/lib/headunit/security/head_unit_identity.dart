@@ -81,6 +81,14 @@ class HeadUnitIdentity {
   ///
   /// Call before initializing the TLS client.
   Future<void> ensureIdentity() async {
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+
+    final identityAssets = manifest
+        .listAssets()
+        .where((key) => key.contains('headunit-'))
+        .toList();
+
+    _log.info('Identity assets in bundle: $identityAssets');
     final certificate = await readCertificate();
     final privateKey = await readPrivateKey();
 

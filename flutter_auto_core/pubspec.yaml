@@ -35,8 +35,4 @@ flutter:
 
   assets:
     - path: assets/security/headunit-cert.pem
-      flavors:
-        - development
     - path: assets/security/headunit-key.pem
-      flavors:
-        - development

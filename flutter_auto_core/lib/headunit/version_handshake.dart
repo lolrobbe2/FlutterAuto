@@ -25,7 +25,7 @@ class VersionHandshake {
     required this.controlService,
     required this.supportedMajorVersion,
     required this.supportedMinorVersion,
-    this.timeout = const Duration(seconds: 10),
+    this.timeout = const Duration(seconds: 20),
   });
 
   final ControlService controlService;
