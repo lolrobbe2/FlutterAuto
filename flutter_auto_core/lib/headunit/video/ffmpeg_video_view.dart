@@ -3,13 +3,16 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+
 import 'ffmpeg_h264_decoder.dart';
+
 import 'package:logging/logging.dart';
 
 class FfmpegVideoView extends StatefulWidget {
-  const FfmpegVideoView({super.key, required this.decoder});
+  const FfmpegVideoView({super.key, required this.decoder, this.splashScreen});
 
   final FfmpegH264Decoder decoder;
+  final Widget? splashScreen;
 
   @override
   State<FfmpegVideoView> createState() => _FfmpegVideoViewState();
@@ -274,6 +277,8 @@ class _FfmpegVideoViewState extends State<FfmpegVideoView> {
               fit: BoxFit.contain,
               filterQuality: FilterQuality.low,
             )
+          else if (_error == null && widget.splashScreen != null)
+            widget.splashScreen!
           else
             Center(
               child: Padding(

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_auto_core/branding/flutter_auto_splash_screen.dart';
 import 'package:flutter_auto_core/flutter_auto_core.dart';
 import 'package:logging/logging.dart';
 import 'package:window_manager/window_manager.dart';
@@ -348,29 +349,22 @@ class _HeadunitAppState extends State<HeadunitApp> {
   }
 
   Widget _buildHome() {
+    // Keep the branded splash visible while creating or connecting a session.
     if (_starting) {
-      return const _StatusScreen(
-        message: 'Connecting to Android Auto...',
-        showProgress: true,
-      );
+      return const FlutterAutoSplashScreen();
     }
 
+    // Connection/startup errors remain in the logs; do not replace the splash
+    // with a separate text-based status/error screen.
     if (_error != null) {
-      return _StatusScreen(
-        message: 'Unable to start Android Auto',
-        details: _error,
-        showProgress: false,
-      );
+      return const FlutterAutoSplashScreen(showProgress: false);
     }
 
     final HeadunitSession? session = _session;
     final String? serial = _deviceSerial;
 
     if (session == null || serial == null) {
-      return const _StatusScreen(
-        message: 'No Android Auto session available.',
-        showProgress: false,
-      );
+      return const FlutterAutoSplashScreen(showProgress: false);
     }
 
     return _SessionConnector(
@@ -440,57 +434,12 @@ class _SessionConnectorState extends State<_SessionConnector> {
       deviceSerial: widget.deviceSerial,
       session: widget.session,
       videoBuilder: (context, decoder) {
-        return FfmpegVideoView(decoder: decoder);
+        return FfmpegVideoView(
+          decoder: decoder,
+          splashScreen: const FlutterAutoSplashScreen(),
+        );
       },
     );
   }
 }
 
-class _StatusScreen extends StatelessWidget {
-  const _StatusScreen({
-    required this.message,
-    required this.showProgress,
-    this.details,
-  });
-
-  final String message;
-  final String? details;
-  final bool showProgress;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (showProgress) ...[
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 24),
-                ],
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 20),
-                ),
-                if (details != null) ...[
-                  const SizedBox(height: 16),
-                  SelectableText(
-                    details!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_auto/screens/adb_terminal_screen.dart';
 import 'package:flutter_auto/screens/headunit_screen.dart';
+import 'package:flutter_auto_core/branding/flutter_auto_splash_screen.dart';
 import 'package:flutter_auto_core/flutter_auto_core.dart';
 
 
@@ -81,6 +82,7 @@ class _DeviceSelectionScreenState extends State<DeviceSelectionScreen> {
               // This view only renders frames and must not dispose it.
               return FfmpegVideoView(
                 decoder: decoder,
+                splashScreen: const FlutterAutoSplashScreen(),
               );
             },
           ),

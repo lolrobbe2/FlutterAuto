@@ -24,6 +24,7 @@ dependencies:
   http: ^1.6.0
   ffi: ^2.2.0
   dart_libusb: ^1.0.1
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -36,3 +37,6 @@ flutter:
   assets:
     - path: assets/security/headunit-cert.pem
     - path: assets/security/headunit-key.pem
+    - path: assets/image/aa_icon.png
+    - path: assets/image/Android_auto_marks_horizontal_Black.svg
+    - path: assets/image/Android_auto_marks_horizontal_Inverse.svg
