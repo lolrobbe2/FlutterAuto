@@ -13,18 +13,17 @@ import 'protocol_transport.dart';
 
 /// Android Auto byte transport over libusb.
 ///
-/// The USB operations run in a worker isolate. The resulting input stream
-/// supplies arbitrary byte chunks to ProtocolConnection, which handles
-/// protocol frame boundaries.
+/// USB operations run in a worker isolate. The input stream provides arbitrary
+/// byte chunks to ProtocolConnection, which handles protocol frame boundaries.
 ///
 /// Requires a libusb-1.0 native library at [libraryPath] or on the platform's
-/// native library search path.
+/// native library search path. On Windows, libusb uses its installed Windows
+/// backend; the accessory interface must have a driver/backend that libusb can
+/// claim. This code deliberately does not select the optional UsbDk backend.
 class LibusbAoaProtocolTransport implements ProtocolTransport {
   LibusbAoaProtocolTransport._() {
     _eventSubscription = _events.listen(_handleWorkerEvent);
   }
-
-  static const int _readBufferSize = 16 * 1024;
 
   final ReceivePort _events = ReceivePort();
   final StreamController<List<int>> _inputController =
@@ -32,11 +31,9 @@ class LibusbAoaProtocolTransport implements ProtocolTransport {
 
   final Completer<void> _connected = Completer<void>();
   final Completer<void> _done = Completer<void>();
-
-  final Map<int, Completer<void>> _pendingWrites = {};
+  final Map<int, Completer<void>> _pendingWrites = <int, Completer<void>>{};
 
   late final StreamSubscription<dynamic> _eventSubscription;
-
   Isolate? _worker;
   SendPort? _commandPort;
 
@@ -49,7 +46,7 @@ class LibusbAoaProtocolTransport implements ProtocolTransport {
 
   bool get isClosed => _closeRequested || _finished;
 
-  /// Initializes libusb, enters AOA mode if needed, then opens its bulk
+  /// Initializes libusb, enters AOA mode if needed, and opens its bulk
   /// endpoints. Completes only after the USB transport is ready.
   static Future<LibusbAoaProtocolTransport> connect({
     String? libraryPath,
@@ -153,7 +150,6 @@ class LibusbAoaProtocolTransport implements ProtocolTransport {
         if (completer == null || completer.isCompleted) break;
 
         final Object? error = message['error'];
-
         if (error == null) {
           completer.complete();
         } else {
@@ -169,7 +165,6 @@ class LibusbAoaProtocolTransport implements ProtocolTransport {
 
       case 'transportError':
         final error = StateError(message['error'].toString());
-
         if (!_connected.isCompleted) {
           _connected.completeError(error);
         } else if (!_inputController.isClosed) {
@@ -192,14 +187,12 @@ class LibusbAoaProtocolTransport implements ProtocolTransport {
     }
 
     final SendPort? commands = _commandPort;
-
     if (commands == null) {
       return Future<void>.error(StateError('The USB worker is not ready.'));
     }
 
     final int id = ++_nextWriteId;
     final completer = Completer<void>();
-
     _pendingWrites[id] = completer;
 
     // Send a copy so the caller can safely reuse its buffer afterwards.
@@ -223,9 +216,7 @@ class LibusbAoaProtocolTransport implements ProtocolTransport {
 
     if (!_closeRequested) {
       _closeRequested = true;
-
       final SendPort? commands = _commandPort;
-
       if (commands != null) {
         commands.send(<String, Object?>{'command': command});
       }
@@ -279,9 +270,7 @@ class LibusbAoaProtocolTransport implements ProtocolTransport {
 
 class _UsbWorkerState {
   Libusb? api;
-
   ffi.Pointer<libusb_context> context = ffi.nullptr.cast<libusb_context>();
-
   ffi.Pointer<libusb_device_handle>? handle;
 
   int? interfaceNumber;
@@ -291,39 +280,50 @@ class _UsbWorkerState {
   bool initialized = false;
   bool interfaceClaimed = false;
   bool closeRequested = false;
+  final List<String> diagnostics = <String>[];
 }
 
 Future<void> _libusbWorkerMain(Map<String, Object?> arguments) async {
   final SendPort events = arguments['eventPort'] as SendPort;
   final ReceivePort commands = ReceivePort();
   final state = _UsbWorkerState();
-
   bool connected = false;
 
   try {
     final String libraryPath = arguments['libraryPath'] as String;
-
     state.api = Libusb(ffi.DynamicLibrary.open(libraryPath));
 
     final api = state.api!;
     final contextOut = calloc<ffi.Pointer<libusb_context>>();
-
     try {
       final int result = api.libusb_init(contextOut);
-
       if (result < 0) {
         throw StateError('libusb_init failed: ${_usbError(state, result)}');
       }
-
       state.context = contextOut.value;
       state.initialized = true;
     } finally {
       calloc.free(contextOut);
     }
 
+    if (Platform.isWindows) {
+      // Keep libusb's normal Windows backend. Do not request UsbDk.
+      // This enables verbose diagnostics; it does not install or bind a driver.
+      api.libusb_set_debug(state.context, 4);
+      state.diagnostics.add(
+        'Using libusb default Windows backend; UsbDk is not requested.',
+      );
+    }
+
     state.handle = await _openOrStartAoa(state, arguments);
 
-    _configureBulkEndpoints(state);
+    try {
+      _configureBulkEndpoints(state);
+    } catch (error) {
+      throw StateError(
+        '$error\nUSB diagnostics:\n${_formatDiagnostics(state)}',
+      );
+    }
 
     commands.listen((dynamic message) {
       if (message is! Map) return;
@@ -331,14 +331,11 @@ Future<void> _libusbWorkerMain(Map<String, Object?> arguments) async {
       switch (message['command']) {
         case 'write':
           final int id = message['id'] as int;
-
           try {
             if (state.closeRequested) {
               throw StateError('USB transport is closing.');
             }
-
             _writeBulk(state, message['bytes'] as Uint8List);
-
             events.send(<String, Object?>{'type': 'writeResult', 'id': id});
           } catch (error) {
             events.send(<String, Object?>{
@@ -363,7 +360,6 @@ Future<void> _libusbWorkerMain(Map<String, Object?> arguments) async {
 
     connected = true;
     events.send(<String, Object?>{'type': 'connected'});
-
     await _readBulkLoop(state, events);
   } catch (error, stackTrace) {
     events.send(<String, Object?>{
@@ -376,6 +372,12 @@ Future<void> _libusbWorkerMain(Map<String, Object?> arguments) async {
     _cleanupUsb(state);
     events.send(<String, Object?>{'type': 'closed'});
   }
+}
+
+String _formatDiagnostics(_UsbWorkerState state) {
+  return state.diagnostics.isEmpty
+      ? 'No additional USB diagnostics recorded.'
+      : state.diagnostics.join('\n');
 }
 
 const Set<int> _aoaProductIds = <int>{
@@ -395,71 +397,89 @@ Future<ffi.Pointer<libusb_device_handle>> _openOrStartAoa(
   Map<String, Object?> arguments,
 ) async {
   // The device may already be in accessory mode.
-  final existing = _findAoaDevice(state);
-
+  final existing = _findAoaDevice(state, recordFailures: true);
   if (existing != null) {
+    state.diagnostics.add('Found a device already in AOA mode.');
     return existing;
   }
 
-  // Otherwise perform the Android Open Accessory handshake.
+  // Otherwise, perform the Android Open Accessory handshake.
   final bool switched = _startAoaOnFirstCapableDevice(state, arguments);
-
   if (!switched) {
     throw StateError(
-      'No accessible Android device supporting AOA was found. '
-      'On Windows, check that the USB driver permits libusb access.',
+      'Could not start Android Open Accessory mode.\n'
+      'USB diagnostics:\n${_formatDiagnostics(state)}',
     );
   }
 
   // Request 53 causes the phone to disconnect and re-enumerate.
   final deadline = DateTime.now().add(const Duration(seconds: 15));
-
   while (DateTime.now().isBefore(deadline)) {
     await Future<void>.delayed(const Duration(milliseconds: 150));
-
     final handle = _findAoaDevice(state);
-
-    if (handle != null) {
-      return handle;
-    }
+    if (handle != null) return handle;
   }
 
   throw StateError(
-    'The phone did not re-enumerate in AOA mode within 15 seconds.',
+    'The phone accepted the AOA start request, but did not '
+    're-enumerate in AOA mode within 15 seconds.\n'
+    'USB diagnostics:\n${_formatDiagnostics(state)}',
   );
 }
 
-ffi.Pointer<libusb_device_handle>? _findAoaDevice(_UsbWorkerState state) {
+ffi.Pointer<libusb_device_handle>? _findAoaDevice(
+  _UsbWorkerState state, {
+  bool recordFailures = false,
+}) {
   final api = state.api!;
   final descriptorOut = calloc<libusb_device_descriptor>();
 
   try {
-    return _withDeviceList<ffi.Pointer<libusb_device_handle>?>(state, (
-      devices,
-      count,
-    ) {
-      for (int i = 0; i < count; i++) {
-        final device = devices[i];
+    return _withDeviceList<ffi.Pointer<libusb_device_handle>?>(
+      state,
+      (devices, count) {
+        for (int i = 0; i < count; i++) {
+          final device = devices[i];
+          final int result = api.libusb_get_device_descriptor(
+            device,
+            descriptorOut,
+          );
+          if (result < 0 || !_isAoaDevice(descriptorOut.ref)) continue;
 
-        final int result = api.libusb_get_device_descriptor(
-          device,
-          descriptorOut,
-        );
+          final descriptor = descriptorOut.ref;
+          final String id = _formatUsbId(
+            descriptor.idVendor,
+            descriptor.idProduct,
+          );
 
-        if (result < 0 || !_isAoaDevice(descriptorOut.ref)) {
-          continue;
+          if (recordFailures) {
+            state.diagnostics.add('Found existing AOA device $id.');
+          }
+
+          final handle = _tryOpenDevice(
+            state,
+            device,
+            diagnosticLabel: recordFailures ? 'existing AOA device $id' : null,
+          );
+          if (handle != null) {
+            if (recordFailures) {
+              state.diagnostics.add('Opened existing AOA device $id.');
+            }
+            return handle;
+          }
         }
-
-        final handle = _tryOpenDevice(state, device);
-
-        if (handle != null) return handle;
-      }
-
-      return null;
-    });
+        return null;
+      },
+    );
   } finally {
     calloc.free(descriptorOut);
   }
+}
+
+String _formatUsbId(int vendorId, int productId) {
+  final vendor = vendorId.toRadixString(16).padLeft(4, '0');
+  final product = productId.toRadixString(16).padLeft(4, '0');
+  return '$vendor:$product';
 }
 
 bool _startAoaOnFirstCapableDevice(
@@ -482,30 +502,46 @@ bool _startAoaOnFirstCapableDevice(
     return _withDeviceList<bool>(state, (devices, count) {
       for (int i = 0; i < count; i++) {
         final device = devices[i];
-
-        if (api.libusb_get_device_descriptor(device, descriptorOut) < 0) {
+        final int descriptorResult = api.libusb_get_device_descriptor(
+          device,
+          descriptorOut,
+        );
+        if (descriptorResult < 0) {
+          state.diagnostics.add(
+            'Could not read USB device descriptor: '
+            '${_usbError(state, descriptorResult)}.',
+          );
           continue;
         }
 
         final descriptor = descriptorOut.ref;
+        final String id = _formatUsbId(
+          descriptor.idVendor,
+          descriptor.idProduct,
+        );
 
-        // Already checked for AOA mode. Avoid probing USB hubs.
+        // Ignore devices already checked by the AOA lookup and USB hubs.
         if (_isAoaDevice(descriptor) || descriptor.bDeviceClass == 9) {
           continue;
         }
 
-        final handle = _tryOpenDevice(state, device);
+        state.diagnostics.add(
+          'Probing USB device $id, class '
+          '0x${descriptor.bDeviceClass.toRadixString(16).padLeft(2, '0')}.',
+        );
 
+        final handle = _tryOpenDevice(
+          state,
+          device,
+          diagnosticLabel: id,
+        );
         if (handle == null) continue;
 
         try {
           // AOA request 51: GET_PROTOCOL.
           final protocolBuffer = calloc<ffi.Uint8>(2);
-
-          int protocolResult;
-
           try {
-            protocolResult = api.libusb_control_transfer(
+            final int protocolResult = api.libusb_control_transfer(
               handle,
               0xC0, // Device-to-host | vendor | device
               51, // ACCESSORY_GET_PROTOCOL
@@ -516,12 +552,25 @@ bool _startAoaOnFirstCapableDevice(
               1000,
             );
 
-            if (protocolResult != 2) continue;
+            if (protocolResult != 2) {
+              state.diagnostics.add(
+                'GET_PROTOCOL failed for $id: result=$protocolResult'
+                '${protocolResult < 0 ? ', ${_usbError(state, protocolResult)}' : ''}.',
+              );
+              continue;
+            }
 
             final int protocolVersion =
                 protocolBuffer[0] | (protocolBuffer[1] << 8);
-
-            if (protocolVersion < 1) continue;
+            state.diagnostics.add(
+              'GET_PROTOCOL succeeded for $id: version=$protocolVersion.',
+            );
+            if (protocolVersion < 1) {
+              state.diagnostics.add(
+                'Unsupported AOA protocol version $protocolVersion for $id.',
+              );
+              continue;
+            }
           } finally {
             calloc.free(protocolBuffer);
           }
@@ -542,22 +591,26 @@ bool _startAoaOnFirstCapableDevice(
             0,
             1000,
           );
-
           if (startResult < 0) {
             throw StateError(
-              'AOA ACCESSORY_START failed: '
+              'AOA ACCESSORY_START failed for $id: '
               '${_usbError(state, startResult)}',
             );
           }
 
-          // The phone will now disconnect. Polling for the new accessory
-          // device happens after this handle has been closed.
+          state.diagnostics.add(
+            'ACCESSORY_START succeeded for $id; waiting for re-enumeration.',
+          );
           return true;
+        } catch (error, stackTrace) {
+          state.diagnostics.add(
+            'AOA handshake failed for $id: $error\n$stackTrace',
+          );
         } finally {
+          // Each opened candidate is closed exactly once.
           api.libusb_close(handle);
         }
       }
-
       return false;
     });
   } finally {
@@ -580,7 +633,6 @@ void _sendAoaString(
   }
 
   final buffer = calloc<ffi.Uint8>(encoded.length + 1);
-
   try {
     buffer.asTypedList(encoded.length + 1)
       ..setRange(0, encoded.length, encoded)
@@ -610,18 +662,31 @@ void _sendAoaString(
 
 ffi.Pointer<libusb_device_handle>? _tryOpenDevice(
   _UsbWorkerState state,
-  ffi.Pointer<libusb_device> device,
-) {
+  ffi.Pointer<libusb_device> device, {
+  String? diagnosticLabel,
+}) {
   final api = state.api!;
   final handleOut = calloc<ffi.Pointer<libusb_device_handle>>();
-
   try {
     final int result = api.libusb_open(device, handleOut);
-
-    if (result < 0 || handleOut.value == ffi.nullptr) {
+    if (result < 0) {
+      if (diagnosticLabel != null) {
+        state.diagnostics.add(
+          'libusb_open($diagnosticLabel) failed: '
+          '${_usbError(state, result)} ($result).',
+        );
+      }
       return null;
     }
 
+    if (handleOut.value == ffi.nullptr) {
+      if (diagnosticLabel != null) {
+        state.diagnostics.add(
+          'libusb_open($diagnosticLabel) succeeded but returned a null handle.',
+        );
+      }
+      return null;
+    }
     return handleOut.value;
   } finally {
     calloc.free(handleOut);
@@ -634,10 +699,8 @@ T _withDeviceList<T>(
 ) {
   final api = state.api!;
   final listOut = calloc<ffi.Pointer<ffi.Pointer<libusb_device>>>();
-
   try {
     final int count = api.libusb_get_device_list(state.context, listOut);
-
     if (count < 0) {
       throw StateError(
         'Could not enumerate USB devices: ${_usbError(state, count)}',
@@ -645,7 +708,6 @@ T _withDeviceList<T>(
     }
 
     final devices = listOut.value;
-
     try {
       return callback(devices, count);
     } finally {
@@ -661,19 +723,15 @@ T _withDeviceList<T>(
 void _configureBulkEndpoints(_UsbWorkerState state) {
   final api = state.api!;
   final handle = state.handle!;
-
   final device = api.libusb_get_device(handle);
   final configOut = calloc<ffi.Pointer<libusb_config_descriptor>>();
 
   try {
     int result = api.libusb_get_active_config_descriptor(device, configOut);
-
     if (result < 0) {
       configOut.value = ffi.nullptr.cast<libusb_config_descriptor>();
-
       result = api.libusb_get_config_descriptor(device, 0, configOut);
     }
-
     if (result < 0) {
       throw StateError(
         'Could not read USB configuration: ${_usbError(state, result)}',
@@ -682,7 +740,6 @@ void _configureBulkEndpoints(_UsbWorkerState state) {
 
     final config = configOut.value.ref;
     final int configurationValue = config.bConfigurationValue;
-
     int? selectedInterface;
     int? selectedAlternate;
     int? selectedIn;
@@ -690,22 +747,16 @@ void _configureBulkEndpoints(_UsbWorkerState state) {
 
     for (int i = 0; i < config.bNumInterfaces; i++) {
       final usbInterface = config.interface[i];
-
       for (int a = 0; a < usbInterface.num_altsetting; a++) {
         final alternate = usbInterface.altsetting[a];
-
         int? inputEndpoint;
         int? outputEndpoint;
 
         for (int e = 0; e < alternate.bNumEndpoints; e++) {
           final endpoint = alternate.endpoint[e];
-
-          // Transfer type 2 is bulk. Interrupt and isochronous endpoints
-          // are not appropriate for this byte-stream transport.
+          // Transfer type 2 is bulk.
           if ((endpoint.bmAttributes & 0x03) != 0x02) continue;
-
           final int address = endpoint.bEndpointAddress;
-
           if ((address & 0x80) != 0) {
             inputEndpoint = address;
           } else {
@@ -721,7 +772,6 @@ void _configureBulkEndpoints(_UsbWorkerState state) {
           break;
         }
       }
-
       if (selectedInterface != null) break;
     }
 
@@ -735,19 +785,15 @@ void _configureBulkEndpoints(_UsbWorkerState state) {
     }
 
     final currentConfiguration = calloc<ffi.Int>();
-
     try {
       result = api.libusb_get_configuration(handle, currentConfiguration);
-
       if (result < 0) {
         throw StateError(
           'Could not get USB configuration: ${_usbError(state, result)}',
         );
       }
-
       if (currentConfiguration.value != configurationValue) {
         result = api.libusb_set_configuration(handle, configurationValue);
-
         if (result < 0) {
           throw StateError(
             'Could not select USB configuration: ${_usbError(state, result)}',
@@ -758,16 +804,15 @@ void _configureBulkEndpoints(_UsbWorkerState state) {
       calloc.free(currentConfiguration);
     }
 
-    // On platforms without kernel-driver detach support, claiming the
-    // interface below will return the actionable driver error.
+    // The call is useful on platforms that support kernel-driver detach.
+    // Windows driver/interface availability still depends on the bound driver.
     api.libusb_set_auto_detach_kernel_driver(handle, 1);
-
     result = api.libusb_claim_interface(handle, selectedInterface);
-
     if (result < 0) {
       throw StateError(
         'Could not claim USB interface $selectedInterface: '
-        '${_usbError(state, result)}. Check driver ownership and permissions.',
+        '${_usbError(state, result)}. On Windows, check that this specific '
+        'AOA interface is exposed through a libusb-compatible driver/backend.',
       );
     }
 
@@ -783,41 +828,31 @@ void _configureBulkEndpoints(_UsbWorkerState state) {
         selectedInterface,
         selectedAlternate,
       );
-
       if (result < 0) {
         throw StateError(
-          'Could not select alternate USB setting: '
-          '${_usbError(state, result)}',
+          'Could not select alternate USB setting: ${_usbError(state, result)}',
         );
       }
     }
   } finally {
     final config = configOut.value;
-
     if (config != ffi.nullptr) {
       api.libusb_free_config_descriptor(config);
     }
-
     calloc.free(configOut);
   }
 }
 
-Future<void> _readBulkLoop(
-  _UsbWorkerState state,
-  SendPort events,
-) async {
+Future<void> _readBulkLoop(_UsbWorkerState state, SendPort events) async {
   const int readBufferSize = 16 * 1024;
-
   final api = state.api!;
   final handle = state.handle!;
-
   final buffer = calloc<ffi.Uint8>(readBufferSize);
   final actualLength = calloc<ffi.Int>();
 
   try {
     while (!state.closeRequested) {
       actualLength.value = 0;
-
       final int result = api.libusb_bulk_transfer(
         handle,
         state.endpointIn,
@@ -826,7 +861,6 @@ Future<void> _readBulkLoop(
         actualLength,
         100,
       );
-
       final int length = actualLength.value;
 
       if (length > 0) {
@@ -838,11 +872,8 @@ Future<void> _readBulkLoop(
 
       // LIBUSB_ERROR_TIMEOUT is -7.
       if (result < 0 && result != -7) {
-        throw StateError(
-          'USB bulk read failed: ${_usbError(state, result)}',
-        );
+        throw StateError('USB bulk read failed: ${_usbError(state, result)}');
       }
-
       await Future<void>.delayed(Duration.zero);
     }
   } finally {
@@ -853,21 +884,17 @@ Future<void> _readBulkLoop(
 
 void _writeBulk(_UsbWorkerState state, Uint8List bytes) {
   if (bytes.isEmpty) return;
-
   final api = state.api!;
   final handle = state.handle!;
-
   final buffer = calloc<ffi.Uint8>(bytes.length);
   final actualLength = calloc<ffi.Int>();
 
   try {
     buffer.asTypedList(bytes.length).setAll(0, bytes);
-
     int offset = 0;
 
     while (offset < bytes.length) {
       actualLength.value = 0;
-
       final int result = api.libusb_bulk_transfer(
         handle,
         state.endpointOut,
@@ -877,17 +904,12 @@ void _writeBulk(_UsbWorkerState state, Uint8List bytes) {
         actualLength,
         5000,
       );
-
       final int written = actualLength.value;
-
-      if (written > 0) {
-        offset += written;
-      }
+      if (written > 0) offset += written;
 
       if (result < 0 && result != -7) {
         throw StateError('USB bulk write failed: ${_usbError(state, result)}');
       }
-
       if (written == 0) {
         throw StateError('USB bulk write made no progress.');
       }
@@ -900,26 +922,19 @@ void _writeBulk(_UsbWorkerState state, Uint8List bytes) {
 
 String _usbError(_UsbWorkerState state, int code) {
   final pointer = state.api!.libusb_error_name(code);
-
-  if (pointer == ffi.nullptr) {
-    return 'libusb error $code';
-  }
-
+  if (pointer == ffi.nullptr) return 'libusb error $code';
   return pointer.cast<Utf8>().toDartString();
 }
 
 void _cleanupUsb(_UsbWorkerState state) {
   final api = state.api;
-
   if (api == null) return;
 
   final handle = state.handle;
-
   if (handle != null && handle != ffi.nullptr) {
     if (state.interfaceClaimed && state.interfaceNumber != null) {
       api.libusb_release_interface(handle, state.interfaceNumber!);
     }
-
     api.libusb_close(handle);
     state.handle = null;
   }
