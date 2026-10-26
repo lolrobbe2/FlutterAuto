@@ -357,14 +357,14 @@ class _HeadunitAppState extends State<HeadunitApp> {
     // Connection/startup errors remain in the logs; do not replace the splash
     // with a separate text-based status/error screen.
     if (_error != null) {
-      return const FlutterAutoSplashScreen(showProgress: false);
+      return const FlutterAutoSplashScreen();
     }
 
     final HeadunitSession? session = _session;
     final String? serial = _deviceSerial;
 
     if (session == null || serial == null) {
-      return const FlutterAutoSplashScreen(showProgress: false);
+      return const FlutterAutoSplashScreen();
     }
 
     return _SessionConnector(

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -9,17 +10,34 @@ abstract final class AutoAssets {
   AutoAssets._();
 
   // Asset paths
-  static const String aaIcon = 'assets/image/aa_icon.png';
+  static const String aaIcon =
+      'packages/flutter_auto_core/assets/image/aa_icon.png';
 
   static const String androidAutoMarksHorizontalBlack =
-      'assets/image/Android_auto_marks_horizontal_Black.svg';
+      'packages/flutter_auto_core/assets/image/Android_auto_marks_horizontal_Black.svg';
 
   static const String androidAutoMarksHorizontalInverse =
-      'assets/image/Android_auto_marks_horizontal_Inverse.svg';
+      'packages/flutter_auto_core/assets/image/Android_auto_marks_horizontal_Inverse.svg';
+  static const String androidAutoMarksVerticalBlack =
+      'packages/flutter_auto_core/assets/image/Android_auto_marks_vertical_Black.svg';
 
+  static const String androidAutoMarksVerticalInverse =
+      'packages/flutter_auto_core/assets/image/Android_auto_marks_vertical_Inverse.svg';
   // ---------------------------------------------------------------------------
   // Raw asset loading
   // ---------------------------------------------------------------------------
+
+  static Future<String> loadAndroidAutoMarksBlack() =>
+      loadString(androidAutoMarksHorizontalBlack);
+
+  static Future<String> loadAndroidAutoMarksVerticalBlack() =>
+      loadString(androidAutoMarksVerticalBlack);
+
+  static Future<String> loadAndroidAutoMarksVerticalInverse() =>
+      loadString(androidAutoMarksVerticalInverse);
+
+  static Future<String> loadAndroidAutoMarksInverse() =>
+      loadString(androidAutoMarksHorizontalInverse);
 
   /// Load any asset as raw bytes.
   static Future<Uint8List> loadBytes(String assetPath) async {
@@ -65,10 +83,6 @@ abstract final class AutoAssets {
   // Android Auto horizontal marks — black
   // ---------------------------------------------------------------------------
 
-  static Future<String> loadAndroidAutoMarksBlack() {
-    return loadString(androidAutoMarksHorizontalBlack);
-  }
-
   static Widget androidAutoMarksBlack({
     double? width,
     double? height,
@@ -88,10 +102,6 @@ abstract final class AutoAssets {
   // Android Auto horizontal marks — inverse
   // ---------------------------------------------------------------------------
 
-  static Future<String> loadAndroidAutoMarksInverse() {
-    return loadString(androidAutoMarksHorizontalInverse);
-  }
-
   static Widget androidAutoMarksInverse({
     double? width,
     double? height,
@@ -104,6 +114,35 @@ abstract final class AutoAssets {
       height: height,
       fit: fit,
       semanticsLabel: semanticsLabel ?? 'Android Auto',
+    );
+  }
+
+  static Widget androidAutoMarksVerticalBlackImage({
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.contain,
+  }) {
+    return SvgPicture.asset(
+      androidAutoMarksVerticalBlack,
+      width: width,
+      height: height,
+      fit: fit,
+      semanticsLabel: 'Android Auto',
+    );
+  }
+
+  static Widget androidAutoMarksVerticalInverseImage({
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.contain,
+  }) {
+    return SvgPicture.asset(
+      androidAutoMarksVerticalInverse,
+      width: width,
+      height: height,
+      fit: fit,
+      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+      semanticsLabel: 'Android Auto',
     );
   }
 }

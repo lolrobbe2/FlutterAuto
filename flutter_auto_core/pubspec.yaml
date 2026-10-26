@@ -40,3 +40,5 @@ flutter:
     - path: assets/image/aa_icon.png
     - path: assets/image/Android_auto_marks_horizontal_Black.svg
     - path: assets/image/Android_auto_marks_horizontal_Inverse.svg
+    - path: assets/image/Android_auto_marks_vertical_Black.svg
+    - path: assets/image/Android_auto_marks_vertical_Inverse.svg

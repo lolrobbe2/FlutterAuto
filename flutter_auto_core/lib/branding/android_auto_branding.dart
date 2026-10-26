@@ -15,115 +15,151 @@ abstract final class AndroidAutoBrandColors {
 }
 
 enum AndroidAutoWordmarkVariant {
-  /// Select a monochrome asset from the background color.
   automatic,
-
-  /// Official black wordmark asset; intended for white/light backgrounds.
   black,
-
-  /// Official white/inverse wordmark asset; intended for dark or suitable
-  /// colored backgrounds.
   inverse,
 }
 
-/// Android Auto horizontal wordmark with a solid background and conservative
-/// clear space around it.
+enum AndroidAutoWordmarkOrientation {
+  /// Select horizontal or vertical using the available aspect ratio.
+  automatic,
+  horizontal,
+  vertical,
+}
+
 class AndroidAutoWordmark extends StatelessWidget {
   const AndroidAutoWordmark({
     super.key,
     required this.backgroundColor,
     this.markHeight = 28,
+    this.markWidth,
     this.clearSpace,
     this.variant = AndroidAutoWordmarkVariant.automatic,
+    this.orientation = AndroidAutoWordmarkOrientation.automatic,
     this.alignment = Alignment.center,
     this.semanticsLabel = 'Android Auto',
-  }) : assert(markHeight > 0),
-       assert(clearSpace == null || clearSpace >= markHeight,
-           'Clear space should be at least the rendered wordmark height.');
+  })  : assert(markHeight > 0),
+        assert(markWidth == null || markWidth > 0),
+        assert(clearSpace == null || clearSpace >= markHeight);
 
-  /// The widget paints this opaque solid color behind and around the mark.
-  /// Pass a flat color rather than using the mark over photos/patterns.
   final Color backgroundColor;
-
-  /// Height of the wordmark artwork, excluding the surrounding clear space.
   final double markHeight;
-
-  /// Minimum padding on every side. Defaults to [markHeight], a conservative
-  /// proxy for the full height of the capital “A” in the supplied asset.
+  final double? markWidth;
   final double? clearSpace;
-
-  /// In automatic mode, the color is selected using the background luminance
-  /// and saturation. Use explicit variants only when you have checked the
-  /// resulting contrast and background against the official guidance.
   final AndroidAutoWordmarkVariant variant;
+  final AndroidAutoWordmarkOrientation orientation;
   final AlignmentGeometry alignment;
   final String semanticsLabel;
-
-  String _resolveAsset() {
-    switch (variant) {
-      case AndroidAutoWordmarkVariant.black:
-        // WARNING: The black wordmark belongs on white/light backgrounds.
-        return AutoAssets.androidAutoMarksHorizontalBlack;
-      case AndroidAutoWordmarkVariant.inverse:
-        // WARNING: The inverse (white) wordmark is for dark or suitable
-        // colored backgrounds; it must not disappear against a light surface.
-        return AutoAssets.androidAutoMarksHorizontalInverse;
-      case AndroidAutoWordmarkVariant.automatic:
-        final hsl = HSLColor.fromColor(backgroundColor);
-        final luminance = backgroundColor.computeLuminance();
-        final whiteContrast = _contrastRatio(
-          AndroidAutoBrandColors.white,
-          backgroundColor,
-        );
-
-        // Google's guidance prefers black on light backgrounds and white on
-        // dark/colored backgrounds. Prefer the inverse on colored surfaces
-        // when its contrast remains reasonable; otherwise choose the legible
-        // monochrome option. This is a UI heuristic, not a replacement for
-        // checking the actual creative/background with the brand guidance.
-        final bool isColored = hsl.saturation >= 0.16;
-        final bool useInverse =
-            (isColored && whiteContrast >= 3.0) || luminance < 0.30;
-        return useInverse
-            ? AutoAssets.androidAutoMarksHorizontalInverse
-            : AutoAssets.androidAutoMarksHorizontalBlack;
-    }
-  }
 
   static double _contrastRatio(Color a, Color b) {
     final la = a.computeLuminance();
     final lb = b.computeLuminance();
     final lighter = la > lb ? la : lb;
     final darker = la > lb ? lb : la;
+
     return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  bool _useInverseAsset() {
+    switch (variant) {
+      case AndroidAutoWordmarkVariant.black:
+        return false;
+
+      case AndroidAutoWordmarkVariant.inverse:
+        return true;
+
+      case AndroidAutoWordmarkVariant.automatic:
+        final whiteContrast = _contrastRatio(
+          Colors.white,
+          backgroundColor,
+        );
+        final blackContrast = _contrastRatio(
+          AndroidAutoBrandColors.black,
+          backgroundColor,
+        );
+
+        return whiteContrast >= blackContrast;
+    }
+  }
+
+  bool _useVerticalAsset(BoxConstraints constraints) {
+    switch (orientation) {
+      case AndroidAutoWordmarkOrientation.horizontal:
+        return false;
+
+      case AndroidAutoWordmarkOrientation.vertical:
+        return true;
+
+      case AndroidAutoWordmarkOrientation.automatic:
+        // If an explicit display box was supplied, use its aspect ratio.
+        if (markWidth != null) {
+          return markWidth! / markHeight < 1.0;
+        }
+
+        // Otherwise use the available parent dimensions.
+        if (constraints.maxWidth.isFinite &&
+            constraints.maxHeight.isFinite &&
+            constraints.maxHeight > 0) {
+          return constraints.maxWidth / constraints.maxHeight < 1.0;
+        }
+
+        // Unbounded layouts, such as a Row, default to horizontal.
+        return false;
+    }
+  }
+
+  String _resolveAsset({
+    required bool vertical,
+    required bool inverse,
+  }) {
+    if (vertical) {
+      return inverse
+          ? AutoAssets.androidAutoMarksVerticalInverse
+          : AutoAssets.androidAutoMarksVerticalBlack;
+    }
+
+    return inverse
+        ? AutoAssets.androidAutoMarksHorizontalInverse
+        : AutoAssets.androidAutoMarksHorizontalBlack;
   }
 
   @override
   Widget build(BuildContext context) {
-    final asset = _resolveAsset();
-    final space = clearSpace ?? markHeight;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final vertical = _useVerticalAsset(constraints);
+        final inverse = _useInverseAsset();
 
-    // WARNING — Keep the original SVG intact. Do not tint/recolor, skew,
-    // rotate, blur, outline, shadow, stretch, or change its proportions/weight.
-    // Horizontal is the preferred wordmark; a stacked version is not created
-    // from these horizontal assets.
-    return ColoredBox(
-      color: backgroundColor,
-      child: Padding(
-        // WARNING — Google's minimum clear space is the full height of the
-        // “A” on every side. The default uses the artwork height as a
-        // conservative approximation; pass a larger measured value if needed.
-        padding: EdgeInsets.all(space),
-        child: Align(
-          alignment: alignment,
-          child: SvgPicture.asset(
-            asset,
-            height: markHeight,
-            fit: BoxFit.contain,
-            semanticsLabel: semanticsLabel,
+        final asset = _resolveAsset(
+          vertical: vertical,
+          inverse: inverse,
+        );
+
+        final space = clearSpace ?? markHeight;
+
+        return ColoredBox(
+          color: backgroundColor,
+          child: Padding(
+            padding: EdgeInsets.all(space),
+            child: Align(
+              alignment: alignment,
+              child: SvgPicture.asset(
+                asset,
+                width: markWidth,
+                height: markHeight,
+                fit: BoxFit.contain,
+                colorFilter: inverse
+                    ? const ColorFilter.mode(
+                        Colors.white,
+                        BlendMode.srcIn,
+                      )
+                    : null,
+                semanticsLabel: semanticsLabel,
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -186,8 +222,10 @@ class AndroidAutoPartnerLockup extends StatelessWidget {
     this.wordmarkVariant = AndroidAutoWordmarkVariant.automatic,
   }) : assert(partnerLogoHeight > 0),
        assert(androidAutoMarkHeight > 0),
-       assert(androidAutoMarkHeight < partnerLogoHeight,
-           'Android Auto wordmark should be smaller than the partner logo.'),
+       assert(
+         androidAutoMarkHeight < partnerLogoHeight,
+         'Android Auto wordmark should be smaller than the partner logo.',
+       ),
        assert(gap >= 0);
 
   final Widget partnerLogo;
