@@ -24,6 +24,7 @@ class SensorService extends ChannelService {
         ..sensors.addAll([
           SensorTypeEntry()..sensorType = SensorType_Enum.NIGHT_DATA,
           SensorTypeEntry()..sensorType = SensorType_Enum.DRIVING_STATUS,
+          SensorTypeEntry()..sensorType = SensorType_Enum.PARKING_BRAKE,
         ]));
   }
 
@@ -39,8 +40,8 @@ class SensorService extends ChannelService {
       return;
     }
 
-    log.fine(
-      'Unhandled input message: '
+    log.warning(
+      'Sensor Unhandled input message: '
       '0x${id.toRadixString(16).padLeft(4, '0')}',
     );
   }

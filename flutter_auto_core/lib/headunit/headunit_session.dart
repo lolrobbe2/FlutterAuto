@@ -1,32 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_auto_core/flutter_auto_core.dart';
+import 'package:flutter_auto_core/headunit/service/mediabrowser_service.dart';
+import 'package:flutter_auto_core/headunit/service/navigation_service.dart';
+import 'package:flutter_auto_core/headunit/service/phone_service.dart';
 import 'package:flutter_auto_core/headunit/transport/protocol_transport.dart';
 import 'package:flutter_auto_core/headunit/transport/usb_protocol_transport.dart';
-
-import '../generated/oaa/video/VideoFPSEnum.pbenum.dart';
-import '../generated/oaa/video/VideoResolutionEnum.pbenum.dart';
-import 'input/input_base.dart';
-import 'message_router.dart';
-import 'protocol_message_sender.dart';
-import 'security/android_auto_tls_client.dart';
-import 'security/head_unit_identity.dart';
-import 'security/ssl_handshake_transport.dart';
-import 'service/channel_service_registry.dart';
-import 'service/control_service.dart';
-import 'service/input_service.dart';
-import 'service/media_audio_service.dart';
-import 'service/microphone_service.dart';
-import 'service/sensor_service.dart';
-import 'service/system_audio_service.dart';
-import 'service/video_service.dart';
-import 'service/voice_service.dart';
-
-import 'package:flutter_auto_core/services/adb_manager.dart';
 import 'package:logging/logging.dart';
-
-import 'protocol_connection.dart';
-import 'version_handshake.dart';
 
 typedef HeadunitTransportFactory = Future<ProtocolTransport> Function();
 
@@ -101,7 +82,10 @@ class HeadunitSession {
          fps: videoFps,
          dpi: videoDpi,
        ),
-       inputService = InputService(inputs: inputs);
+       inputService = InputService(
+         inputs: inputs,
+         videoResolution: videoResolution,
+       );
 
   /// Creates a session using TCP, optionally configuring ADB forwarding.
   factory HeadunitSession.adb({
@@ -186,7 +170,10 @@ class HeadunitSession {
   final mediaAudioService = MediaAudioService();
   final speechAudioService = SpeechAudioService();
   final systemAudioService = SystemAudioService();
-  final microphoneInputService = MicrophoneInputService();
+  final audioVisualService = AudioVisualService();
+  final mediaInfoService = MediaInfoService();
+  final phoneStatusService = PhoneStatusService();
+  final navigationService = NavigationService();
   VideoService videoService;
   InputService inputService;
 
@@ -229,6 +216,8 @@ class HeadunitSession {
     if (_state != HeadunitSessionState.disconnected) {
       throw StateError('Cannot connect while the session is $_state.');
     }
+
+    await AudioService.initialize();
 
     _setState(HeadunitSessionState.connecting);
 
@@ -300,16 +289,18 @@ class HeadunitSession {
 
       // Register the control service on channel 0 just like every
       // data service. It owns version, TLS, auth, and discovery messages.
-      registry.register(controlService);
+      registry.register(controlService);     // channel 0
 
-      registry.register(inputService);
-      registry.register(sensorService);
-      registry.register(videoService);
-      registry.register(mediaAudioService);
-      registry.register(speechAudioService);
-      registry.register(systemAudioService);
-      registry.register(microphoneInputService);
-
+      registry.register(inputService);       // channel 1
+      registry.register(sensorService);      // channel 2
+      registry.register(videoService);       // channel 3
+      registry.register(mediaAudioService);  // channel 4
+      registry.register(speechAudioService); // channel 5
+      registry.register(systemAudioService); // channel 6
+      registry.register(audioVisualService); // channel 7
+      registry.register(navigationService);  // channel 9
+      registry.register(mediaInfoService);   // channel 10
+      registry.register(phoneStatusService); // channel 11
       // Route all incoming messages before sending the version request.
       registry.start();
 
@@ -478,8 +469,9 @@ class HeadunitSession {
     await mediaAudioService.dispose();
     await speechAudioService.dispose();
     await systemAudioService.dispose();
-    await microphoneInputService.dispose();
-
+    await mediaAudioService.dispose();
+    await mediaInfoService.dispose();
+    await phoneStatusService.dispose();
     await _stateController.close();
   }
 }

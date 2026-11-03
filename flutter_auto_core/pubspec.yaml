@@ -25,6 +25,7 @@ dependencies:
   ffi: ^2.2.0
   dart_libusb: ^1.0.1
   flutter_svg: ^2.3.0
+  flutter_soloud: ^5.2.2
 
 dev_dependencies:
   flutter_test:

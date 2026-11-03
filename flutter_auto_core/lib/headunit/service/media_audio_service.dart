@@ -1,16 +1,6 @@
-import '../../generated/oaa/audio/AudioConfigData.pb.dart';
-import '../../generated/oaa/audio/AudioTypeEnum.pb.dart';
-import '../../generated/oaa/av/AVChannelData.pb.dart';
-import '../../generated/oaa/av/MediaCodecTypeEnum.pbenum.dart';
-import '../../generated/oaa/common/StatusEnum.pbenum.dart';
-import '../../generated/oaa/control/ChannelDescriptorData.pb.dart';
-import '../../generated/oaa/control/ChannelOpenRequestMessage.pb.dart';
-import '../../generated/oaa/control/ChannelOpenResponseMessage.pb.dart';
-import '../../generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
-import '../protocol_frame.dart';
-import '../protocol_message.dart';
-import 'channel_service.dart';
+import 'package:flutter_auto_core/flutter_auto_core.dart';
 
+//AUDIO_SINK_SYSTEM
 class MediaAudioService extends ChannelService {
   static const String serviceName = 'media_audio';
   static const int defaultChannelId = 4;
@@ -34,7 +24,7 @@ class MediaAudioService extends ChannelService {
 
   @override
   Future<void> dispose() async {}
-  
+
   @override
   Future<void> handleMessage(ProtocolMessage message) async {
     final id = messageIdOf(message);
@@ -43,9 +33,12 @@ class MediaAudioService extends ChannelService {
       await _handleChannelOpenRequest(message);
       return;
     }
+    if (id ==  AVChannelMessage_Enum.SETUP_REQUEST.value) {
+      await _handleSetupRequest(message);
+    }
 
-    log.fine(
-      'Unhandled input message: '
+    log.warning(
+      'MediaAudio Unhandled input message: '
       '0x${id.toRadixString(16).padLeft(4, '0')}',
     );
   }
@@ -67,6 +60,10 @@ class MediaAudioService extends ChannelService {
       messageType: MessageType.control,
     );
 
-    log.info('Media channel $channelId opened successfully.');
+    log.info('Media audio channel $channelId opened successfully.');
+  }
+
+  Future<void> _handleSetupRequest(ProtocolMessage message) async {
+    AVChannelSetupRequest request = AVChannelSetupRequest.fromBuffer(bodyOf(message));
   }
 }

@@ -42,7 +42,7 @@ class SystemAudioService extends ChannelService {
     }
 
     log.fine(
-      'Unhandled input message: '
+      'System Audio Unhandled input message: '
       '0x${id.toRadixString(16).padLeft(4, '0')}',
     );
   }

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:flutter_auto_core/generated/oaa/video/VideoResolutionEnum.pbenum.dart';
+
 import '../../generated/oaa/common/StatusEnum.pbenum.dart';
 import '../../generated/oaa/control/ChannelDescriptorData.pb.dart';
 import '../../generated/oaa/control/ChannelOpenRequestMessage.pb.dart';
@@ -17,8 +19,8 @@ class InputService extends ChannelService {
   static const int defaultChannelId = 1;
 
   // Must match the video resolution advertised by VideoService.
-  static const int videoWidth = 800;
-  static const int videoHeight = 480;
+  late int videoWidth;
+  late int videoHeight;
 
   final List<InputBase> _inputs = [];
 
@@ -29,7 +31,60 @@ class InputService extends ChannelService {
 
   InputService({
     Iterable<InputBase> inputs = const [],
+    VideoResolution_Enum videoResolution = VideoResolution_Enum.VIDEO_800x480,
   }) : super(channelId: defaultChannelId) {
+    switch (videoResolution) {
+      case VideoResolution_Enum.VIDEO_800x480:
+        videoWidth = 800;
+        videoHeight = 480;
+        break;
+
+      case VideoResolution_Enum.VIDEO_1280x720:
+        videoWidth = 1280;
+        videoHeight = 720;
+        break;
+
+      case VideoResolution_Enum.VIDEO_1920x1080:
+        videoWidth = 1920;
+        videoHeight = 1080;
+        break;
+
+      case VideoResolution_Enum.VIDEO_2560x1440:
+        videoWidth = 2560;
+        videoHeight = 1440;
+        break;
+
+      case VideoResolution_Enum.VIDEO_3840x2160:
+        videoWidth = 3840;
+        videoHeight = 2160;
+        break;
+
+      case VideoResolution_Enum.VIDEO_720x1280:
+        videoWidth = 720;
+        videoHeight = 1280;
+        break;
+
+      case VideoResolution_Enum.VIDEO_1080x1920:
+        videoWidth = 1080;
+        videoHeight = 1920;
+        break;
+
+      case VideoResolution_Enum.VIDEO_1440x2560:
+        videoWidth = 1440;
+        videoHeight = 2560;
+        break;
+
+      case VideoResolution_Enum.VIDEO_2160x3840:
+        videoWidth = 2160;
+        videoHeight = 3840;
+        break;
+
+      default:
+        //fallback to a sane default.
+        videoWidth = 800;
+        videoHeight = 480;
+        break;
+    }
     for (final input in inputs) {
       addInput(input);
     }
@@ -50,21 +105,22 @@ class InputService extends ChannelService {
     input.bindChannel(
       messageIdOf: messageIdOf,
       bodyOf: bodyOf,
-      sendMessage: ({
-        required int messageId,
-        required Uint8List body,
-        required EncryptionType encryptionType,
-        required MessageType messageType,
-        required FrameType frameType,
-      }) {
-        return sendMessage(
-          messageId: messageId,
-          body: body,
-          encryptionType: encryptionType,
-          messageType: messageType,
-          frameType: frameType,
-        );
-      },
+      sendMessage:
+          ({
+            required int messageId,
+            required Uint8List body,
+            required EncryptionType encryptionType,
+            required MessageType messageType,
+            required FrameType frameType,
+          }) {
+            return sendMessage(
+              messageId: messageId,
+              body: body,
+              encryptionType: encryptionType,
+              messageType: messageType,
+              frameType: frameType,
+            );
+          },
     );
 
     _inputs.add(input);
@@ -83,9 +139,7 @@ class InputService extends ChannelService {
         ..displayId = 0
         ..supportedKeycodes.addAll([3, 4, 84])
         ..touchScreenConfigs.addAll(
-          _inputs
-              .whereType<TouchInput>()
-              .map((input) => input.buildConfig()),
+          _inputs.whereType<TouchInput>().map((input) => input.buildConfig()),
         ));
   }
 
@@ -104,9 +158,7 @@ class InputService extends ChannelService {
     }
   }
 
-  Future<void> _handleChannelOpenRequest(
-    ProtocolMessage message,
-  ) async {
+  Future<void> _handleChannelOpenRequest(ProtocolMessage message) async {
     final request = ChannelOpenRequest.fromBuffer(bodyOf(message));
 
     if (request.channelId != channelId) {
@@ -117,9 +169,7 @@ class InputService extends ChannelService {
       return;
     }
 
-    final response = ChannelOpenResponse(
-      status: Status_Enum.OK,
-    );
+    final response = ChannelOpenResponse(status: Status_Enum.OK);
 
     await sendMessage(
       messageId: ControlMessage_Enum.CHANNEL_OPEN_RESPONSE.value,

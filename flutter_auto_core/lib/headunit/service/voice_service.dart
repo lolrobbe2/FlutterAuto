@@ -12,7 +12,7 @@ import '../protocol_message.dart';
 import 'channel_service.dart';
 
 AudioConfig _voiceAudioConfig() =>
-    AudioConfig(sampleRate: 16000, bitDepth: 16, channelCount: 1);
+    AudioConfig(sampleRate: 48000, bitDepth: 16, channelCount: 1);
 
 /// Channel 5: navigation speech and assistant voice.
 class SpeechAudioService extends ChannelService {
@@ -42,8 +42,8 @@ class SpeechAudioService extends ChannelService {
       return;
     }
 
-    log.fine(
-      'Unhandled input message: '
+    log.warning(
+      'Speech Audio Unhandled input message: '
       '0x${id.toRadixString(16).padLeft(4, '0')}',
     );
   }

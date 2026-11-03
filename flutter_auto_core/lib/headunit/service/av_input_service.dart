@@ -1,27 +1,14 @@
-import '../../generated/oaa/audio/AudioConfigData.pb.dart';
-import '../../generated/oaa/av/AVInputChannelData.pb.dart';
-import '../../generated/oaa/av/MediaCodecTypeEnum.pbenum.dart';
-import '../../generated/oaa/common/StatusEnum.pbenum.dart';
-import '../../generated/oaa/control/ChannelDescriptorData.pb.dart';
-import '../../generated/oaa/control/ChannelOpenRequestMessage.pb.dart';
-import '../../generated/oaa/control/ChannelOpenResponseMessage.pb.dart';
-import '../../generated/oaa/control/ControlMessageIdsEnum.pbenum.dart';
-import '../protocol_frame.dart';
-import '../protocol_message.dart';
-import 'channel_service.dart';
-
-AudioConfig _voiceAudioConfig() =>
-    AudioConfig(sampleRate: 16000, bitDepth: 16, channelCount: 1);
+import 'package:flutter_auto_core/flutter_auto_core.dart';
 
 /// Channel 7: microphone input to the phone.
 ///
 /// This advertises PCM audio input. A microphone capture and streaming
 /// implementation is still needed to send actual audio.
-class MicrophoneInputService extends ChannelService {
-  static const String serviceName = 'microphone_input';
+class AudioVisualService extends ChannelService {
+  static const String serviceName = 'audio_visual';
   static const int defaultChannelId = 7;
 
-  MicrophoneInputService(): super(channelId: defaultChannelId);
+  AudioVisualService() : super(channelId: defaultChannelId);
 
   @override
   ChannelDescriptor buildDescriptor(int channelId) {
@@ -29,8 +16,12 @@ class MicrophoneInputService extends ChannelService {
       ..channelId = channelId
       ..avInputChannel = (AVInputChannel()
         ..streamType = MediaCodecType_Enum.MEDIA_CODEC_AUDIO_PCM
-        ..audioConfig = _voiceAudioConfig());
+        ..audioConfig = (AudioConfig()
+          ..sampleRate = 16000
+          ..bitDepth = 16
+          ..channelCount = 1));
   }
+
   @override
   Future<void> handleMessage(ProtocolMessage message) async {
     final id = messageIdOf(message);
@@ -40,8 +31,8 @@ class MicrophoneInputService extends ChannelService {
       return;
     }
 
-    log.fine(
-      'Unhandled input message: '
+    log.warning(
+      'AudioVisual Unhandled input message: '
       '0x${id.toRadixString(16).padLeft(4, '0')}',
     );
   }

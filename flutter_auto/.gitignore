@@ -44,3 +44,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /assets/security/
+# Widget Preview related
+.widget_preview/
