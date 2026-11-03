@@ -26,8 +26,8 @@ class AudioService {
     return true;
   }
 
-  static AudioStream CreateStream(int session, Channels channels, BufferType type){
-    AudioStream stream =  AudioStream(channels, type);
+  static AudioStream createStream(int session, Channels channels, BufferType type, int sampleRate){
+    AudioStream stream =  AudioStream(channels, type, sampleRate);
     streams[session] = stream;
     return streams[session]!;
   }

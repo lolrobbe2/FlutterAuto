@@ -9,10 +9,11 @@ class AudioStream {
   // [SoLoud] local stream
   late AudioSource _nativeStream;
   SoundHandle? _handle;
-  AudioStream(Channels channels, BufferType type) {
+  AudioStream(Channels channels, BufferType type, int sampleRate) {
     _nativeStream = SoLoud.instance.setBufferStream(
       bufferingType: BufferingType.released,
       channels: channels,
+      sampleRate: sampleRate,
       format: type,
     );
   }

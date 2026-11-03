@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_auto_core/flutter_auto_core.dart';
 import 'package:flutter_auto_core/headunit/audio/audio_stream.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
-
+//NOTE 32 bit audio is not allowed
 //AUDIO_SINK_SYSTEM
 class MediaAudioService extends ChannelService {
   static const String serviceName = 'media_audio';
@@ -22,7 +22,7 @@ class MediaAudioService extends ChannelService {
         ..audioConfigs.add(
           AudioConfig()
             ..sampleRate = 48000
-            ..bitDepth = 32
+            ..bitDepth = 16
             ..channelCount = 2,
         ));
   }
@@ -53,6 +53,7 @@ class MediaAudioService extends ChannelService {
 
     if (id == AVChannelMessage_Enum.AV_MEDIA_WITH_TIMESTAMP_INDICATION.value) {
       await _handleMediaWithTimeStampIndication(message);
+      return;
     }
 
     log.warning(
@@ -103,10 +104,11 @@ class MediaAudioService extends ChannelService {
     AVChannelStartIndication startIndication =
         AVChannelStartIndication.fromBuffer(bodyOf(message));
     session = startIndication.session;
-    currentStream = AudioService.CreateStream(
+    currentStream = AudioService.createStream(
       startIndication.session,
       Channels.stereo,
-      BufferType.s32le,
+      BufferType.s16le,
+      48000
     );
     currentStream!.play();
   }
@@ -123,7 +125,8 @@ class MediaAudioService extends ChannelService {
   ) async {
     final Uint8List mediaData = bodyOf(message);
     if (currentStream != null) {
-      currentStream!.appendData(mediaData);
+      final Uint8List pcmData = Uint8List.sublistView(mediaData, 8);
+      currentStream!.appendData(pcmData);
       AVMediaAckIndication ackIndication = AVMediaAckIndication(
         sessionId: session,
         ackCount: 1,
