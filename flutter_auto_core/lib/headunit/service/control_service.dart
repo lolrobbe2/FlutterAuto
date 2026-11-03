@@ -36,7 +36,7 @@ class ControlService extends ChannelService {
     }
     final body = Uint8List(4);
     final data = ByteData.sublistView(body);
-  
+    
     data.setUint16(0, major, Endian.big);
     data.setUint16(2, minor, Endian.big);
 
@@ -183,7 +183,7 @@ class ControlService extends ChannelService {
       messageId: ControlMessage_Enum.AUDIO_FOCUS_RESPONSE.value,
       body: response.writeToBuffer(),
       encryptionType: EncryptionType.encrypted,
-      messageType: MessageType.control,
+      messageType: MessageType.specific,
     );
   }
 }
