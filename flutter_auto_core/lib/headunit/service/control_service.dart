@@ -1,16 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import '../../generated/oaa/common/DriverPositionEnum.pbenum.dart';
-import '../../generated/oaa/control/AuthCompleteIndicationMessage.pb.dart';
-import '../../generated/oaa/control/ServiceDiscoveryRequestMessage.pb.dart';
-import '../../generated/oaa/control/ServiceDiscoveryResponseMessage.pb.dart';
-import 'channel_service.dart';
+import 'package:flutter_auto_core/flutter_auto_core.dart';
 import 'package:logging/logging.dart';
-
-import '../protocol_frame.dart';
-import '../protocol_message.dart';
-import 'channel_service_registry.dart';
 
 class ControlService extends ChannelService {
   ControlService({required this.registry}) : super(channelId: 0);
@@ -88,26 +80,27 @@ class ControlService extends ChannelService {
   Future<void> handleMessage(ProtocolMessage message) async {
     final int id = messageIdOf(message);
 
-    switch (id) {
-      case versionResponseId:
-        _log.fine('Received VERSION_RESPONSE.');
-        break;
-
-      case sslHandshakeId:
-        // TLS bytes are also exposed through incomingTlsBytes.
-        _log.fine('Received SSL_HANDSHAKE (${bodyOf(message).length} bytes).');
-        break;
-
-      case serviceDiscoveryRequestId:
-        await _handleServiceDiscoveryRequest(message);
-        break;
-
-      default:
-        _log.fine(
-          'Unhandled control message ID '
-          '0x${id.toRadixString(16).padLeft(4, '0')}.',
-        );
+    if (id == ControlMessage_Enum.VERSION_RESPONSE.value) {
+      _log.fine('Received VERSION_RESPONSE.');
+      return;
     }
+    if (id == ControlMessage_Enum.SSL_HANDSHAKE.value) {
+      // TLS bytes are also exposed through incomingTlsBytes.
+      _log.fine('Received SSL_HANDSHAKE (${bodyOf(message).length} bytes).');
+      return;
+    }
+    if (id == ControlMessage_Enum.SERVICE_DISCOVERY_REQUEST.value) {
+      await _handleServiceDiscoveryRequest(message);
+      return;
+    }
+    if (id == ControlMessage_Enum.AUDIO_FOCUS_REQUEST.value) {
+      await _handleAudioFocusRequest(message);
+      return;
+    }
+    _log.warning(
+      'Unhandled control message ID '
+      '0x${id.toRadixString(16).padLeft(4, '0')}.',
+    );
   }
 
   Future<void> _handleServiceDiscoveryRequest(ProtocolMessage message) async {
@@ -164,5 +157,29 @@ class ControlService extends ChannelService {
       }
       rethrow;
     }
+  }
+
+  Future<void> _handleAudioFocusRequest(ProtocolMessage message) async {
+    AudioFocusRequest request = AudioFocusRequest.fromBuffer(bodyOf(message));
+    
+    final AudioFocusState_Enum focusState =
+        request.audioFocusType == AudioFocusType_Enum.RELEASE
+        ? AudioFocusState_Enum.LOSS
+        : AudioFocusState_Enum.GAIN;
+
+    _log.info(
+      'Audio focus requested: ${request.audioFocusType.name}. '
+      'Responding with: ${focusState.name}.',
+    );
+
+    final AudioFocusResponse response = AudioFocusResponse(
+      audioFocusState: focusState,
+    );
+    await sendMessage(
+      messageId: ControlMessage_Enum.AUDIO_FOCUS_RESPONSE.value,
+      body: response.writeToBuffer(),
+      encryptionType: EncryptionType.encrypted,
+      messageType: MessageType.specific,
+    );
   }
 }

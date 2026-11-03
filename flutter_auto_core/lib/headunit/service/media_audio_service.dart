@@ -33,8 +33,9 @@ class MediaAudioService extends ChannelService {
       await _handleChannelOpenRequest(message);
       return;
     }
-    if (id ==  AVChannelMessage_Enum.SETUP_REQUEST.value) {
+    if (id == AVChannelMessage_Enum.SETUP_REQUEST.value) {
       await _handleSetupRequest(message);
+      return;
     }
 
     log.warning(
@@ -64,6 +65,20 @@ class MediaAudioService extends ChannelService {
   }
 
   Future<void> _handleSetupRequest(ProtocolMessage message) async {
-    AVChannelSetupRequest request = AVChannelSetupRequest.fromBuffer(bodyOf(message));
+    AVChannelSetupRequest request = AVChannelSetupRequest.fromBuffer(
+      bodyOf(message),
+    );
+    request.mediaCodecType;
+    final response = AVChannelSetupResponse(
+      mediaStatus: AVChannelSetupStatus_Enum.OK,
+      maxUnacked: 10,
+      configs: [],
+    );
+    await sendMessage(
+      messageId: AVChannelMessage_Enum.SETUP_RESPONSE.value,
+      body: response.writeToBuffer(),
+      encryptionType: EncryptionType.encrypted,
+      messageType: MessageType.specific,
+    );
   }
 }

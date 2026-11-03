@@ -1,14 +1,4 @@
-import '../../generated/oaa/common/StatusEnum.pbenum.dart';
-import '../../generated/oaa/control/ChannelDescriptorData.pb.dart';
-import '../../generated/oaa/control/ChannelOpenRequestMessage.pb.dart';
-import '../../generated/oaa/control/ChannelOpenResponseMessage.pb.dart';
-import '../../generated/oaa/control/ControlMessageIdsEnum.pb.dart';
-import '../../generated/oaa/sensor/SensorChannelConfigData.pb.dart';
-import '../../generated/oaa/sensor/SensorChannelData.pb.dart';
-import '../../generated/oaa/sensor/SensorTypeEnum.pbenum.dart';
-import '../protocol_frame.dart';
-import '../protocol_message.dart';
-import 'channel_service.dart';
+import 'package:flutter_auto_core/flutter_auto_core.dart';
 
 class SensorService extends ChannelService {
   static const String serviceName = 'sensor';
@@ -40,6 +30,12 @@ class SensorService extends ChannelService {
       return;
     }
 
+    if(id == SensorChannelMessage_Enum.SENSOR_REQUEST.value){
+      //TODO
+      await _handleSensorRequest(message);
+      return;
+    }
+
     log.warning(
       'Sensor Unhandled input message: '
       '0x${id.toRadixString(16).padLeft(4, '0')}',
@@ -64,5 +60,17 @@ class SensorService extends ChannelService {
     );
 
     log.info('Sensor channel $channelId opened successfully.');
+  }
+
+  Future<void> _handleSensorRequest(ProtocolMessage message) async {
+    SensorRequest request = SensorRequest.fromBuffer(bodyOf(message));
+    
+    SensorStartResponseMessage response = SensorStartResponseMessage(status: Status_Enum.OK);
+    await sendMessage(
+      messageId: SensorChannelMessage_Enum.SENSOR_START_RESPONSE.value,
+      body: response.writeToBuffer(),
+      encryptionType: EncryptionType.encrypted,
+      messageType: MessageType.specific,
+    );
   }
 }

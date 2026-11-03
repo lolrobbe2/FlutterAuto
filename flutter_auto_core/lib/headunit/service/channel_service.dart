@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import '../../generated/oaa/control/ChannelDescriptorData.pb.dart';
-import '../protocol_message_sender.dart';
 import 'package:logging/logging.dart';
 
+import '../../generated/oaa/control/ChannelDescriptorData.pb.dart';
 import '../protocol_frame.dart';
 import '../protocol_message.dart';
+import '../protocol_message_sender.dart';
 
 abstract class ChannelService {
   ChannelService({required this.channelId});
@@ -35,7 +35,7 @@ abstract class ChannelService {
 
   /// Called by ChannelServiceRegistry for messages on this service's channel.
   Future<void> handleMessage(ProtocolMessage message) async {
-    log.fine(
+    log.warning(
       'Unhandled message on channel $channelId: '
       'id=0x${messageIdOf(message).toRadixString(16).padLeft(4, '0')}',
     );
