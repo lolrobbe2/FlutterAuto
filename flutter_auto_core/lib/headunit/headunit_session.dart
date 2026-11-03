@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_auto_core/flutter_auto_core.dart';
+import 'package:flutter_auto_core/headunit/service/bluetooth_service.dart';
 import 'package:flutter_auto_core/headunit/service/mediabrowser_service.dart';
 import 'package:flutter_auto_core/headunit/service/navigation_service.dart';
 import 'package:flutter_auto_core/headunit/service/phone_service.dart';
+import 'package:flutter_auto_core/headunit/service/wifi_service.dart';
 import 'package:flutter_auto_core/headunit/transport/protocol_transport.dart';
 import 'package:flutter_auto_core/headunit/transport/usb_protocol_transport.dart';
 import 'package:logging/logging.dart';
@@ -174,6 +176,8 @@ class HeadunitSession {
   final mediaInfoService = MediaInfoService();
   final phoneStatusService = PhoneStatusService();
   final navigationService = NavigationService();
+  final bluetoothService = BluetoothService();
+  final wifiService = WifiService();
   VideoService videoService;
   InputService inputService;
 
@@ -298,9 +302,11 @@ class HeadunitSession {
       registry.register(speechAudioService); // channel 5
       registry.register(systemAudioService); // channel 6
       registry.register(audioVisualService); // channel 7
+      registry.register(bluetoothService);   // channel 8
       registry.register(navigationService);  // channel 9
       registry.register(mediaInfoService);   // channel 10
       registry.register(phoneStatusService); // channel 11
+      registry.register(wifiService);        // channel 14
       // Route all incoming messages before sending the version request.
       registry.start();
 

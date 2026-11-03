@@ -136,7 +136,7 @@ class ControlService extends ChannelService {
         headunitModel: 'FlutterAuto',
         swBuild: 'flutter-auto-dev',
         swVersion: '1.0.0',
-        canPlayNativeMediaDuringVr: false,
+        canPlayNativeMediaDuringVr: true,
         displayName: 'FlutterAuto',
       );
 
@@ -183,7 +183,7 @@ class ControlService extends ChannelService {
       messageId: ControlMessage_Enum.AUDIO_FOCUS_RESPONSE.value,
       body: response.writeToBuffer(),
       encryptionType: EncryptionType.encrypted,
-      messageType: MessageType.specific,
+      messageType: MessageType.control,
     );
   }
 }
