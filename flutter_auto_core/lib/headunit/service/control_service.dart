@@ -30,9 +30,13 @@ class ControlService extends ChannelService {
       _discoveryCompleter.future;
 
   Future<void> sendVersionRequest(int major, int minor) async {
+    if(!(major >= 1 && minor >= 7)){
+      _log.severe("incorrect minimum version");
+      return;
+    }
     final body = Uint8List(4);
     final data = ByteData.sublistView(body);
-
+  
     data.setUint16(0, major, Endian.big);
     data.setUint16(2, minor, Endian.big);
 

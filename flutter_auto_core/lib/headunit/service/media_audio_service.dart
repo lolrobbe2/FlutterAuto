@@ -1,10 +1,15 @@
+import 'dart:typed_data';
+
 import 'package:flutter_auto_core/flutter_auto_core.dart';
+import 'package:flutter_auto_core/headunit/audio/audio_stream.dart';
+import 'package:flutter_soloud/flutter_soloud.dart';
 
 //AUDIO_SINK_SYSTEM
 class MediaAudioService extends ChannelService {
   static const String serviceName = 'media_audio';
   static const int defaultChannelId = 4;
-
+  int session = -1;
+  AudioStream? currentStream;
   MediaAudioService() : super(channelId: defaultChannelId);
 
   @override
@@ -17,7 +22,7 @@ class MediaAudioService extends ChannelService {
         ..audioConfigs.add(
           AudioConfig()
             ..sampleRate = 48000
-            ..bitDepth = 16
+            ..bitDepth = 32
             ..channelCount = 2,
         ));
   }
@@ -36,6 +41,18 @@ class MediaAudioService extends ChannelService {
     if (id == AVChannelMessage_Enum.SETUP_REQUEST.value) {
       await _handleSetupRequest(message);
       return;
+    }
+    if (id == AVChannelMessage_Enum.START_INDICATION.value) {
+      await _handleStartIndication(message);
+      return;
+    }
+    if (id == AVChannelMessage_Enum.STOP_INDICATION.value) {
+      await _handleStopIndication(message);
+      return;
+    }
+
+    if (id == AVChannelMessage_Enum.AV_MEDIA_WITH_TIMESTAMP_INDICATION.value) {
+      await _handleMediaWithTimeStampIndication(message);
     }
 
     log.warning(
@@ -72,13 +89,55 @@ class MediaAudioService extends ChannelService {
     final response = AVChannelSetupResponse(
       mediaStatus: AVChannelSetupStatus_Enum.OK,
       maxUnacked: 10,
-      configs: [],
+      configs: [0],
     );
     await sendMessage(
       messageId: AVChannelMessage_Enum.SETUP_RESPONSE.value,
       body: response.writeToBuffer(),
       encryptionType: EncryptionType.encrypted,
       messageType: MessageType.specific,
+    );
+  }
+
+  Future<void> _handleStartIndication(ProtocolMessage message) async {
+    AVChannelStartIndication startIndication =
+        AVChannelStartIndication.fromBuffer(bodyOf(message));
+    session = startIndication.session;
+    currentStream = AudioService.CreateStream(
+      startIndication.session,
+      Channels.stereo,
+      BufferType.s32le,
+    );
+    currentStream!.play();
+  }
+
+  Future<void> _handleStopIndication(ProtocolMessage message) async {
+    AVChannelStopIndication stopIndication = AVChannelStopIndication.fromBuffer(
+      bodyOf(message),
+    );
+    //TODO stop stream.
+  }
+
+  Future<void> _handleMediaWithTimeStampIndication(
+    ProtocolMessage message,
+  ) async {
+    final Uint8List mediaData = bodyOf(message);
+    if (currentStream != null) {
+      currentStream!.appendData(mediaData);
+      AVMediaAckIndication ackIndication = AVMediaAckIndication(
+        sessionId: session,
+        ackCount: 1,
+      );
+      await sendMessage(
+        messageId: AVChannelMessage_Enum.AV_MEDIA_ACK_INDICATION.value,
+        body: ackIndication.writeToBuffer(),
+        encryptionType: EncryptionType.encrypted,
+        messageType: MessageType.specific,
+      );
+      return;
+    }
+    log.warning(
+      "Received TimeStamped Media Data while the session was closed!",
     );
   }
 }

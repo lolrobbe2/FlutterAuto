@@ -31,7 +31,6 @@ class SensorService extends ChannelService {
     }
 
     if(id == SensorChannelMessage_Enum.SENSOR_REQUEST.value){
-      //TODO
       await _handleSensorRequest(message);
       return;
     }
