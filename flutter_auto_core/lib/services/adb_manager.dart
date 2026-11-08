@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
@@ -26,6 +27,7 @@ class AdbDevice {
 
 class AdbManager {
   static final Logger _log = Logger('AdbManager');
+  static final Logger _logCat = Logger('LogCat');
 
   late final String _localAdbDir;
   late final String _adbExecutableName;
@@ -115,6 +117,72 @@ class AdbManager {
       _log.severe('Failed to start ADB streaming command.', error, stackTrace);
       throw Exception('Failed to start ADB streaming command: $error');
     }
+  }
+
+  /// Starts a live Logcat stream from the connected Android device.
+  ///
+  /// [tag] optionally filters logs by tag.
+  /// [priority] specifies the minimum log priority.
+  /// [serial] optionally selects a specific device.
+  Future<Process> startLogcat({String? tag, String? serial}) async {
+    final List<String> arguments = <String>[
+      if (serial != null) ...<String>['-s', serial],
+      'logcat',
+      if (tag != null) ...<String>['-s', '$tag:F'],
+      '*:D',
+    ];
+
+    return startStreamingCommand(arguments);
+  }
+
+  /// Starts a live Logcat stream and forwards its output to the logger.
+  ///
+  /// Returns the process so the caller can stop it when necessary.
+  final RegExp logcatRegex = RegExp(
+    r'^\d{2}-\d{2}\s+\S+\s+\d+\s+\d+\s+([VDIWEF])\s+(.*?)\s*:\s?(.*)$',
+  );
+  Future<Process> startLogcatLogging({String? tag, String? serial}) async {
+    final Process process = await startLogcat(tag: tag, serial: serial);
+
+    process.stdout
+        .transform(const SystemEncoding().decoder)
+        .transform(const LineSplitter())
+        .listen((String line) {
+          final Match? match = logcatRegex.firstMatch(line);
+
+          if (match != null) {
+            final String level = match.group(1)!;
+            final String message = match.group(3)!;
+
+            switch (level) {
+              case 'V':
+              case 'D':
+              case 'I':
+                _log.info(message);
+                break;
+              case 'W':
+                _log.warning(message);
+                break;
+              case 'E':
+              case 'F':
+                _log.severe(message);
+                break;
+            }
+          } else {
+            _log.info(line);
+          }
+        });
+
+    process.stderr
+        .transform(const SystemEncoding().decoder)
+        .transform(const LineSplitter())
+        .listen((String line) {
+          _log.warning(line);
+        });
+
+    _log.info('Logcat started.');
+
+    return process;
   }
 
   /// Stops the ADB server.

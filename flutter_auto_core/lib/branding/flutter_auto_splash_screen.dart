@@ -62,7 +62,17 @@ class _FlutterAutoSplashScreenState extends State<FlutterAutoSplashScreen> {
   @override
   void didUpdateWidget(covariant FlutterAutoSplashScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _overlayEntry?.markNeedsBuild();
+
+    if (oldWidget.backgroundColor != widget.backgroundColor ||
+        oldWidget.foregroundColor != widget.foregroundColor ||
+        oldWidget.titleSize != widget.titleSize ||
+        oldWidget.showAndroidAutoWordmark != widget.showAndroidAutoWordmark) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+
+        _overlayEntry?.markNeedsBuild();
+      });
+    }
   }
 
   @override

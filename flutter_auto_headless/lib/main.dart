@@ -55,6 +55,7 @@ class _HeadunitAppState extends State<HeadunitApp> {
   bool _usingUsb = false;
   bool _starting = true;
   String? _selectedAdbSerial;
+  Process? _logcatProcess;
 
   @override
   void initState() {
@@ -62,7 +63,7 @@ class _HeadunitAppState extends State<HeadunitApp> {
     unawaited(_startProjection());
   }
 
-  Future<HeadunitSession> _createAdbSession() async {
+  Future<HeadunitSession> _createAdbSession({bool enableLogcat = false}) async {
     _log.info('Starting ADB server...');
     await _adbManager.startServer();
 
@@ -95,6 +96,13 @@ class _HeadunitAppState extends State<HeadunitApp> {
     }
 
     try {
+      if (enableLogcat) {
+        _log.info('Starting ADB Logcat...');
+
+        _logcatProcess = await _adbManager.startLogcatLogging(
+          serial: device.serial,
+        );
+      }
       final session = HeadunitSession.adb(
         adbManager: _adbManager,
         host: InternetAddress.loopbackIPv4.address,
@@ -262,7 +270,7 @@ class _HeadunitAppState extends State<HeadunitApp> {
       _log.warning('Falling back from direct USB to ADB.');
 
       _selectedAdbSerial = null;
-      final fallbackSession = await _createAdbSession();
+      final fallbackSession = await _createAdbSession(enableLogcat: true);
       final serial = _selectedAdbSerial;
 
       if (serial == null) {
@@ -442,4 +450,3 @@ class _SessionConnectorState extends State<_SessionConnector> {
     );
   }
 }
-
