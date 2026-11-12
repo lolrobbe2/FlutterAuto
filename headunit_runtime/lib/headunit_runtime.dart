@@ -9,3 +9,4 @@ export 'src/application/flutter_application_instance.dart';
 
 export 'src/shell/headunit_shell.dart';
 
+export 'src/application/flutter_application_package_reader.dart';
