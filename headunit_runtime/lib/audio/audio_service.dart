@@ -10,7 +10,9 @@ part 'audio_stream.dart';
 
 class AudioService {
   static final Logger _log = Logger('AudioService');
-
+  static final ServiceKey<AudioService> serviceKey = ServiceKey<AudioService>(
+    ServiceId('headunit.audio'),
+  );
   final Map<AudioSessionId, AudioSession> _sessions = {};
 
   int _nextSessionId = 1;
@@ -37,17 +39,9 @@ class AudioService {
       return true;
     } catch (error, stackTrace) {
       if (error is SoLoudNoPlaybackDevicesFoundCppException) {
-        _log.severe(
-          'No playback devices found.',
-          error,
-          stackTrace,
-        );
+        _log.severe('No playback devices found.', error, stackTrace);
       } else {
-        _log.severe(
-          'Failed to initialize audio service.',
-          error,
-          stackTrace,
-        );
+        _log.severe('Failed to initialize audio service.', error, stackTrace);
       }
 
       return false;
@@ -90,16 +84,13 @@ class AudioService {
   }
 
   Future<void> dispose() async {
-    final List<AudioSession> sessionsToClose =
-        _sessions.values.toList();
+    final List<AudioSession> sessionsToClose = _sessions.values.toList();
 
     _sessions.clear();
 
     try {
       await Future.wait(
-        sessionsToClose.map(
-          (AudioSession session) => session.close(),
-        ),
+        sessionsToClose.map((AudioSession session) => session.close()),
       );
     } finally {
       if (_initialized && SoLoud.instance.isInitialized) {

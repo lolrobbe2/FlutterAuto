@@ -16,7 +16,10 @@ export 'src/application/application_runtime.dart';
 export 'src/audio/audio_session_id.dart';
 export 'src/audio/audio_stream_id.dart';
 export 'src/audio/audio_stream_configuration.dart';
-export 'src/audio/audio_service.dart';
+
+export 'src/services/service_id.dart';
+export 'src/services/service_key.dart';
+export 'src/services/service_broker.dart';
 
 export 'src/capabilities/capability_id.dart';
 
