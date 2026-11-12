@@ -13,6 +13,11 @@ export 'src/application/application_launch_context.dart';
 export 'src/application/application_instance.dart';
 export 'src/application/application_runtime.dart';
 
+export 'src/audio/audio_session_id.dart';
+export 'src/audio/audio_stream_id.dart';
+export 'src/audio/audio_stream_configuration.dart';
+export 'src/audio/audio_service.dart';
+
 export 'src/capabilities/capability_id.dart';
 
 // TODO: Export any libraries intended for clients of this package.
