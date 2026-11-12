@@ -1,0 +1,236 @@
+import 'dart:async';
+
+import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_runtime/headunit_runtime.dart';
+
+const String testApplicationId = 'com.example.test_app';
+
+final CapabilityId audioCapability =
+    CapabilityId('audio.sessions.manage');
+
+ApplicationId createTestApplicationId([String value = testApplicationId]) {
+  return ApplicationId(value);
+}
+
+ApplicationManifest createTestManifest({
+  String id = testApplicationId,
+  String name = 'Test Application',
+  Iterable<CapabilityId>? requestedCapabilities,
+}) {
+  return ApplicationManifest(
+    id: ApplicationId(id),
+    name: name,
+    version: '1.0.0',
+    minimumFrameworkVersion: '0.1.0',
+    runtime: ApplicationRuntimeKind.flutter,
+    requestedCapabilities: requestedCapabilities ?? [audioCapability],
+  );
+}
+
+ApplicationRegistration createTestRegistration({
+  String id = testApplicationId,
+  Iterable<CapabilityId>? requestedCapabilities,
+  Iterable<CapabilityId>? grantedCapabilities,
+}) {
+  final List<CapabilityId> requested =
+      requestedCapabilities?.toList() ?? [audioCapability];
+
+  return ApplicationRegistration(
+    manifest: createTestManifest(
+      id: id,
+      requestedCapabilities: requested,
+    ),
+    grantedCapabilities: grantedCapabilities ?? requested,
+  );
+}
+
+ApplicationLaunchContext createTestLaunchContext({
+  String id = testApplicationId,
+  Iterable<CapabilityId> grantedCapabilities = const [],
+}) {
+  return ApplicationLaunchContext(
+    applicationId: ApplicationId(id),
+    grantedCapabilities: grantedCapabilities,
+  );
+}
+
+class FakeAudioService extends AudioService {
+  int initializeCalls = 0;
+  int disposeCalls = 0;
+
+  bool initializeResult = true;
+
+  Completer<bool>? initializeCompleter;
+
+  @override
+  Future<bool> initialize() async {
+    initializeCalls++;
+
+    final Completer<bool>? completer = initializeCompleter;
+
+    if (completer != null) {
+      return completer.future;
+    }
+
+    return initializeResult;
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposeCalls++;
+  }
+}
+
+class FakeApplicationRuntime implements ApplicationRuntime {
+  @override
+  final ApplicationRuntimeKind kind;
+
+  final List<FakeApplicationInstance> instances = [];
+
+  final List<ServiceBroker> receivedBrokers = [];
+
+  int createInstanceCalls = 0;
+
+  Completer<void>? createInstanceCompleter;
+
+  Object? createError;
+  Object? startError;
+
+  FakeApplicationRuntime({
+    this.kind = ApplicationRuntimeKind.flutter,
+  });
+
+  @override
+  Future<ApplicationInstance> createInstance({
+    required ApplicationManifest manifest,
+    required ApplicationLaunchContext context,
+    required ServiceBroker serviceBroker,
+  }) async {
+    createInstanceCalls++;
+
+    receivedBrokers.add(serviceBroker);
+
+    final Completer<void>? completer = createInstanceCompleter;
+
+    if (completer != null) {
+      await completer.future;
+    }
+
+    final Object? error = createError;
+
+    if (error != null) {
+      throw error;
+    }
+
+    final FakeApplicationInstance instance =
+        FakeApplicationInstance(
+      id: manifest.id,
+      startError: startError,
+    );
+
+    instances.add(instance);
+
+    return instance;
+  }
+}
+
+class FakeApplicationInstance implements ApplicationInstance {
+  @override
+  final ApplicationId id;
+
+  final StreamController<ApplicationLifecycleEvent> _events =
+      StreamController<ApplicationLifecycleEvent>.broadcast();
+
+  final List<ApplicationLifecycleState> transitionHistory = [];
+
+  ApplicationLifecycleState _state =
+      ApplicationLifecycleState.stopped;
+
+  Object? startError;
+
+  int startCalls = 0;
+  int foregroundCalls = 0;
+  int backgroundCalls = 0;
+  int stopCalls = 0;
+
+  FakeApplicationInstance({
+    required this.id,
+    this.startError,
+  });
+
+  @override
+  ApplicationLifecycleState get state => _state;
+
+  @override
+  Stream<ApplicationLifecycleEvent> get lifecycleEvents =>
+      _events.stream;
+
+  @override
+  Future<void> start() async {
+    startCalls++;
+
+    _transition(ApplicationLifecycleState.starting);
+
+    final Object? error = startError;
+
+    if (error != null) {
+      _transition(ApplicationLifecycleState.failed);
+      throw error;
+    }
+
+    _transition(ApplicationLifecycleState.background);
+  }
+
+  @override
+  Future<void> setForeground() async {
+    foregroundCalls++;
+
+    _transition(ApplicationLifecycleState.foreground);
+  }
+
+  @override
+  Future<void> setBackground() async {
+    backgroundCalls++;
+
+    _transition(ApplicationLifecycleState.background);
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalls++;
+
+    if (_state == ApplicationLifecycleState.stopped) {
+      return;
+    }
+
+    if (_state == ApplicationLifecycleState.failed) {
+      _transition(ApplicationLifecycleState.stopped);
+      return;
+    }
+
+    _transition(ApplicationLifecycleState.stopping);
+    _transition(ApplicationLifecycleState.stopped);
+  }
+
+  void _transition(ApplicationLifecycleState next) {
+    if (!_state.canTransitionTo(next)) {
+      throw StateError(
+        'Invalid lifecycle transition: ${_state.name} -> ${next.name}',
+      );
+    }
+
+    final ApplicationLifecycleState previous = _state;
+
+    _state = next;
+    transitionHistory.add(next);
+
+    _events.add(
+      ApplicationLifecycleEvent(
+        applicationId: id,
+        previousState: previous,
+        currentState: next,
+        timestamp: DateTime.now(),
+      ),
+    );
+  }
+}

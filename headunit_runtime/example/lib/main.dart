@@ -295,7 +295,6 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
 
       setState(() {
         _audioService = null;
-        _serviceBroker = null;
         _activeSession = null;
         _activeStream = null;
         _status = 'Runtime disposed.';

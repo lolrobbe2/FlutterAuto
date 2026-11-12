@@ -15,7 +15,7 @@ class ApplicationManager {
   final Map<ApplicationId, Future<ApplicationInstance>> _launchOperations = {};
 
   ApplicationId? _foregroundApplicationId;
-
+  bool _disposing = false;
   bool _disposed = false;
   Future<void>? _disposalFuture;
 
@@ -311,6 +311,8 @@ class ApplicationManager {
       return Future<void>.value();
     }
 
+    _disposing = true;
+
     final Future<void> operation = _disposeInternal();
 
     _disposalFuture = operation;
@@ -358,8 +360,8 @@ class ApplicationManager {
   }
 
   void _ensureActive() {
-    if (_disposed) {
-      throw StateError('ApplicationManager has been disposed.');
+    if (_disposed || _disposing) {
+      throw StateError('ApplicationManager is disposing or disposed.');
     }
   }
 }

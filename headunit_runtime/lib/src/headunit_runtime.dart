@@ -6,20 +6,22 @@ import 'services/service_registry.dart';
 import 'application/application_manager.dart';
 
 class HeadunitRuntime {
-  final AudioService _audioService = AudioService();
+  final AudioService _audioService;
   final ServiceRegistry _serviceRegistry = ServiceRegistry();
   late final ApplicationManager _applicationManager = ApplicationManager(
     serviceRegistry: _serviceRegistry,
   );
 
   HeadunitRuntimeState _state = HeadunitRuntimeState.created;
+  bool _disposeRequested = false;
 
   Future<void>? _initializationFuture;
   Future<void>? _disposalFuture;
 
   HeadunitRuntimeState get state => _state;
 
-  bool get isRunning => _state == HeadunitRuntimeState.running;
+  bool get isRunning =>
+      _state == HeadunitRuntimeState.running && !_disposeRequested;
 
   AudioService get audioService {
     if (!isRunning) {
@@ -41,7 +43,13 @@ class HeadunitRuntime {
     return _applicationManager;
   }
 
+  HeadunitRuntime({AudioService? audioService})
+    : _audioService = audioService ?? AudioService();
+
   Future<void> initialize() {
+    if (_disposeRequested) {
+      throw StateError('Runtime is shutting down or has been disposed.');
+    }
     if (_state == HeadunitRuntimeState.running) {
       return Future<void>.value();
     }
@@ -97,19 +105,21 @@ class HeadunitRuntime {
   }
 
   Future<void> dispose() {
-    if (_state == HeadunitRuntimeState.disposed) {
-      return Future<void>.value();
-    }
-
     if (_disposalFuture != null) {
       return _disposalFuture!;
     }
 
-    final Future<void> disposal = _disposeInternal();
+    if (_state == HeadunitRuntimeState.disposed) {
+      return Future<void>.value();
+    }
 
-    _disposalFuture = disposal;
+    _disposeRequested = true;
 
-    return disposal;
+    final Future<void> operation = _disposeInternal();
+
+    _disposalFuture = operation;
+
+    return operation;
   }
 
   Future<void> _disposeInternal() async {
@@ -119,8 +129,7 @@ class HeadunitRuntime {
       try {
         await initialization;
       } catch (_) {
-        // Initialization failed. Still clean up any partially
-        // initialized framework services.
+        // Clean up even if initialization failed.
       }
     }
 
@@ -130,24 +139,32 @@ class HeadunitRuntime {
 
     _state = HeadunitRuntimeState.disposing;
 
-    try {
-      //AUDIO SERVICE DISPOSAL
-      try {
-        await _applicationManager.dispose();
-      } finally {
-        try {
-          await _audioService.dispose();
-        } finally {
-          _serviceRegistry.dispose();
-        }
-      }
+    Object? firstError;
+    StackTrace? firstStackTrace;
 
-      _state = HeadunitRuntimeState.disposed;
-    } catch (_) {
-      _state = HeadunitRuntimeState.failed;
-      rethrow;
-    } finally {
-      _disposalFuture = null;
+    try {
+      await _applicationManager.dispose();
+    } catch (error, stackTrace) {
+      firstError ??= error;
+      firstStackTrace ??= stackTrace;
     }
+
+    try {
+      await _audioService.dispose();
+    } catch (error, stackTrace) {
+      firstError ??= error;
+      firstStackTrace ??= stackTrace;
+    }
+
+    _serviceRegistry.dispose();
+
+    if (firstError != null) {
+      _state = HeadunitRuntimeState.failed;
+
+      Error.throwWithStackTrace(firstError, firstStackTrace!);
+    }
+
+    _state = HeadunitRuntimeState.disposed;
   }
+
 }
