@@ -104,7 +104,6 @@ void main() {
     testWidgets('displays the home screen when no application is foreground', (
       WidgetTester tester,
     ) async {
-      debugPrint('TEST: started');
 
       final HeadunitRuntime runtime = await createInitializedRuntime();
 

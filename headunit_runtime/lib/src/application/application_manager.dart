@@ -24,6 +24,7 @@ class ApplicationManager {
   ApplicationId? _foregroundApplicationId;
   bool _disposing = false;
   bool _disposed = false;
+  int _transitionSequence = 0;
   Future<void>? _disposalFuture;
   Future<void> _transitionQueue = Future<void>.value();
 
@@ -331,10 +332,12 @@ class ApplicationManager {
   }
 
   Future<void> setForeground(ApplicationId id) {
+    _ensureActive();
     return _enqueueTransition(() => _setForegroundInternal(id));
   }
 
   Future<void> setBackground(ApplicationId id) {
+    _ensureActive();
     return _enqueueTransition(() => _setBackgroundInternal(id));
   }
 
@@ -631,23 +634,23 @@ class ApplicationManager {
         .values
         .toList();
 
-    for (final Future<ApplicationInstance> launch in pendingLaunches) {
+    for (int i = 0; i < pendingLaunches.length; i++) {
       try {
-        await launch;
-      } catch (_) {
-        // A failed launch must not prevent shutdown.
-      }
+        await pendingLaunches[i];
+      } catch (error) {}
     }
 
-    await _transitionQueue;
+    if (_transitionSequence > 0) {
+      await _transitionQueue;
+    }
 
     Object? firstError;
     StackTrace? firstStackTrace;
 
     for (final ApplicationId id in _instances.keys.toList()) {
-      try {
-        final ApplicationInstance? instance = _instances[id];
+      final ApplicationInstance? instance = _instances[id];
 
+      try {
         if (instance != null) {
           await instance.stop();
         }
@@ -666,13 +669,8 @@ class ApplicationManager {
         _instances.remove(id);
       }
     }
-    await _events.close();
-    _foregroundApplicationId = null;
-    _disposed = true;
 
-    if (firstError != null) {
-      Error.throwWithStackTrace(firstError, firstStackTrace!);
-    }
+    await _events.close();
   }
 
   void _ensureActive() {
@@ -702,26 +700,17 @@ class ApplicationManager {
   }
 
   Future<void> _enqueueTransition(Future<void> Function() operation) {
-    final Future<void> previous = _transitionQueue;
+    final Future<void> transition = _transitionQueue.then<void>(
+      (_) => operation(),
+    );
 
-    final Completer<void> release = Completer<void>();
+    // Keep the queue usable even when an individual transition fails.
+    // The returned transition still propagates its original error.
+    _transitionQueue = transition.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
 
-    _transitionQueue = release.future;
-
-    return _executeTransition(previous, release, operation);
-  }
-
-  Future<void> _executeTransition(
-    Future<void> previous,
-    Completer<void> release,
-    Future<void> Function() operation,
-  ) async {
-    await previous;
-
-    try {
-      await operation();
-    } finally {
-      release.complete();
-    }
+    return transition;
   }
 }
