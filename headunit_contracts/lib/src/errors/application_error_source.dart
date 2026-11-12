@@ -1,4 +1,3 @@
-
 enum ApplicationErrorSource {
   startup,
   lifecycle,

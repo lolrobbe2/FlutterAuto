@@ -1,12 +1,10 @@
-
 import 'package:headunit_contracts/headunit_contracts.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('ApplicationError', () {
     test('stores all supplied error information', () {
-      final ApplicationId applicationId =
-          ApplicationId('com.example.radio');
+      final ApplicationId applicationId = ApplicationId('com.example.radio');
 
       final StateError error = StateError('Audio initialization failed');
 

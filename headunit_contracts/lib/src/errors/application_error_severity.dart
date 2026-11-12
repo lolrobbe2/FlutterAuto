@@ -1,6 +1,1 @@
-
-enum ApplicationErrorSeverity {
-  warning,
-  error,
-  critical,
-}
+enum ApplicationErrorSeverity { warning, error, critical }

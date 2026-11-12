@@ -7,8 +7,8 @@ enum ApplicationLifecycleState {
   stopping,
   failed,
 }
-extension ApplicationLifecycleStateTransitions
-    on ApplicationLifecycleState {
+
+extension ApplicationLifecycleStateTransitions on ApplicationLifecycleState {
   bool canTransitionTo(ApplicationLifecycleState next) {
     switch (this) {
       case ApplicationLifecycleState.stopped:

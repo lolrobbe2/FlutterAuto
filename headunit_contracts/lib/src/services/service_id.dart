@@ -7,18 +7,13 @@ final class ServiceId {
 
   ServiceId(this.value) {
     if (value != value.trim() || !_pattern.hasMatch(value)) {
-      throw ArgumentError.value(
-        value,
-        'value',
-        'Invalid service identifier.',
-      );
+      throw ArgumentError.value(value, 'value', 'Invalid service identifier.');
     }
   }
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ServiceId && other.value == value;
+      identical(this, other) || other is ServiceId && other.value == value;
 
   @override
   int get hashCode => value.hashCode;

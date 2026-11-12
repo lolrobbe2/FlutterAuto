@@ -15,8 +15,9 @@ class ApplicationLaunchContext {
     Iterable<CapabilityId> grantedCapabilities = const [],
     this.locale,
     this.productId,
-  }) : grantedCapabilities =
-           List<CapabilityId>.unmodifiable(grantedCapabilities);
+  }) : grantedCapabilities = List<CapabilityId>.unmodifiable(
+         grantedCapabilities,
+       );
 
   bool hasCapability(CapabilityId capability) {
     return grantedCapabilities.contains(capability);

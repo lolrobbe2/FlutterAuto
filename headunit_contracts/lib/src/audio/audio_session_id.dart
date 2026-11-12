@@ -5,8 +5,7 @@ final class AudioSessionId {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AudioSessionId && other.value == value;
+      identical(this, other) || other is AudioSessionId && other.value == value;
 
   @override
   int get hashCode => value.hashCode;

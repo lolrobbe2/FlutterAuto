@@ -13,8 +13,6 @@ enum ApplicationRuntimeKind {
       }
     }
 
-    throw FormatException(
-      'Unsupported application runtime: $value',
-    );
+    throw FormatException('Unsupported application runtime: $value');
   }
 }

@@ -20,8 +20,7 @@ final class ApplicationId {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ApplicationId && other.value == value;
+      identical(this, other) || other is ApplicationId && other.value == value;
 
   @override
   int get hashCode => value.hashCode;

@@ -1,4 +1,3 @@
-
 import '../application/application_id.dart';
 import 'application_error_severity.dart';
 import 'application_error_source.dart';

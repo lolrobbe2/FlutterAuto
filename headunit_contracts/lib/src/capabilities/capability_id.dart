@@ -1,7 +1,5 @@
 final class CapabilityId {
-  static final RegExp _pattern = RegExp(
-    r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$',
-  );
+  static final RegExp _pattern = RegExp(r'^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$');
 
   final String value;
 
@@ -20,8 +18,7 @@ final class CapabilityId {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CapabilityId && other.value == value;
+      identical(this, other) || other is CapabilityId && other.value == value;
 
   @override
   int get hashCode => value.hashCode;

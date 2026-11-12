@@ -1,10 +1,4 @@
-enum AudioChannelLayout {
-  mono,
-  stereo,
-  quad,
-  surround51,
-  dolby71,
-}
+enum AudioChannelLayout { mono, stereo, quad, surround51, dolby71 }
 
 enum AudioSampleFormat {
   signed8,

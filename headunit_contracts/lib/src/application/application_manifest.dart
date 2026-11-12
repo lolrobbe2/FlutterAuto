@@ -37,14 +37,19 @@ class ApplicationManifest {
     this.iconPath,
     this.description,
     Iterable<CapabilityId> requestedCapabilities = const [],
-  }) : requestedCapabilities =
-           List<CapabilityId>.unmodifiable(requestedCapabilities) {
+  }) : requestedCapabilities = List<CapabilityId>.unmodifiable(
+         requestedCapabilities,
+       ) {
     if (name.trim().isEmpty) {
       throw ArgumentError('Application name cannot be empty.');
     }
 
     if (!_versionPattern.hasMatch(version)) {
-      throw ArgumentError.value(version, 'version', 'Invalid semantic version.');
+      throw ArgumentError.value(
+        version,
+        'version',
+        'Invalid semantic version.',
+      );
     }
 
     if (!_versionPattern.hasMatch(minimumFrameworkVersion)) {
@@ -56,9 +61,7 @@ class ApplicationManifest {
     }
 
     if (runtime == ApplicationRuntimeKind.web && entryPoint == null) {
-      throw ArgumentError(
-        'Web applications must define an entry point.',
-      );
+      throw ArgumentError('Web applications must define an entry point.');
     }
 
     _validateRelativePath(entryPoint, 'entryPoint');
@@ -126,15 +129,15 @@ class ApplicationManifest {
       throw FormatException('requestedCapabilities must be a list.');
     }
 
-    final List<CapabilityId> capabilities = rawCapabilities.map(
-      (Object? value) {
-        if (value is! String) {
-          throw FormatException('Invalid capability identifier.');
-        }
+    final List<CapabilityId> capabilities = rawCapabilities.map((
+      Object? value,
+    ) {
+      if (value is! String) {
+        throw FormatException('Invalid capability identifier.');
+      }
 
-        return CapabilityId(value);
-      },
-    ).toList();
+      return CapabilityId(value);
+    }).toList();
 
     String requiredString(String key) {
       final Object? value = json[key];
@@ -165,9 +168,7 @@ class ApplicationManifest {
       name: requiredString('name'),
       version: requiredString('version'),
       minimumFrameworkVersion: requiredString('minimumFrameworkVersion'),
-      runtime: ApplicationRuntimeKind.fromWireName(
-        requiredString('runtime'),
-      ),
+      runtime: ApplicationRuntimeKind.fromWireName(requiredString('runtime')),
       entryPoint: optionalString('entryPoint'),
       iconPath: optionalString('iconPath'),
       description: optionalString('description'),

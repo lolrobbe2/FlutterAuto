@@ -28,4 +28,13 @@ export 'src/errors/application_error_reporter.dart';
 export 'src/errors/application_error_severity.dart';
 export 'src/errors/application_error_source.dart';
 
+export 'src/application/application_background_policy.dart';
+
+export 'src/modules/module_id.dart';
+
+export 'src/product/product_id.dart';
+export 'src/product/product_application.dart';
+export 'src/product/product_module.dart';
+export 'src/product/product_manifest.dart';
+
 // TODO: Export any libraries intended for clients of this package.
