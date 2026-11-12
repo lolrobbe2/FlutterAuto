@@ -28,8 +28,14 @@ void main() {
       serviceRegistry.dispose();
     });
 
-    void registerApplication({String id = testApplicationId}) {
-      manager.registerApplication(createTestRegistration(id: id));
+    void registerApplication({
+      String id = testApplicationId,
+      ApplicationBackgroundPolicy backgroundPolicy =
+          ApplicationBackgroundPolicy.keepMounted,
+    }) {
+      manager.registerApplication(
+        createTestRegistration(id: id, backgroundPolicy: backgroundPolicy),
+      );
     }
 
     test('registers an application', () {
@@ -366,6 +372,184 @@ void main() {
 
       expect(instance.state, ApplicationLifecycleState.stopped);
       expect(manager.runningApplications, isEmpty);
+    });
+    test('keepMounted preserves the background application', () async {
+      const String firstId = 'com.example.radio';
+      const String secondId = 'com.example.navigation';
+
+      registerApplication(id: firstId);
+      registerApplication(id: secondId);
+
+      final FakeApplicationInstance first = await manager.launch(
+        ApplicationId(firstId),
+      ) as FakeApplicationInstance;
+
+      await manager.launch(ApplicationId(secondId));
+
+      expect(first.state, ApplicationLifecycleState.background);
+      expect(first.suspendCalls, 0);
+      expect(manager.getInstance(ApplicationId(firstId)), same(first));
+    });
+    test(
+      'suspend unmounts the application without destroying its instance',
+      () async {
+        const String firstId = 'com.example.radio';
+        const String secondId = 'com.example.navigation';
+
+        registerApplication(
+          id: firstId,
+          backgroundPolicy: ApplicationBackgroundPolicy.suspend,
+        );
+
+        registerApplication(id: secondId);
+
+        final FakeApplicationInstance first = await manager.launch(
+          ApplicationId(firstId),
+        ) as FakeApplicationInstance;
+
+        await manager.launch(ApplicationId(secondId));
+
+        expect(first.state, ApplicationLifecycleState.suspended);
+        expect(first.suspendCalls, 1);
+        expect(manager.getInstance(ApplicationId(firstId)), same(first));
+
+        await manager.launch(ApplicationId(firstId));
+
+        expect(first.state, ApplicationLifecycleState.foreground);
+        expect(first.resumeCalls, 1);
+
+        // It is the same application instance, not a new one.
+        expect(applicationRuntime.createInstanceCalls, 2);
+      },
+    );
+    test('stop destroys the background application', () async {
+      const String firstId = 'com.example.radio';
+      const String secondId = 'com.example.navigation';
+
+      registerApplication(
+        id: firstId,
+        backgroundPolicy: ApplicationBackgroundPolicy.stop,
+      );
+
+      registerApplication(id: secondId);
+
+      final FakeApplicationInstance first = await manager.launch(
+        ApplicationId(firstId),
+      ) as FakeApplicationInstance;
+
+      await manager.launch(ApplicationId(secondId));
+
+      expect(first.state, ApplicationLifecycleState.stopped);
+      expect(manager.getInstance(ApplicationId(firstId)), isNull);
+
+      final ApplicationInstance relaunched = await manager.launch(
+        ApplicationId(firstId),
+      );
+
+      expect(identical(first, relaunched), isFalse);
+      expect(relaunched.state, ApplicationLifecycleState.foreground);
+    });
+    test('serializes rapid foreground changes', () async {
+      const String firstId = 'com.example.first';
+      const String secondId = 'com.example.second';
+      const String thirdId = 'com.example.third';
+
+      registerApplication(id: firstId);
+      registerApplication(id: secondId);
+      registerApplication(id: thirdId);
+
+      await manager.launch(ApplicationId(firstId));
+      await manager.launch(ApplicationId(secondId));
+      await manager.launch(ApplicationId(thirdId));
+
+      await Future.wait([
+        manager.setForeground(ApplicationId(firstId)),
+        manager.setForeground(ApplicationId(secondId)),
+        manager.setForeground(ApplicationId(thirdId)),
+      ]);
+
+      expect(manager.foregroundApplicationId, ApplicationId(thirdId));
+
+      final List<ApplicationInstance> instances = manager
+          .runningApplications
+          .values
+          .toList();
+
+      final int foregroundCount = instances
+          .where(
+            (ApplicationInstance instance) =>
+                instance.state == ApplicationLifecycleState.foreground,
+          )
+          .length;
+
+      expect(foregroundCount, 1);
+    });
+    test('cleans up application when background callback fails', () async {
+      registerApplication();
+
+      final FakeApplicationInstance instance = await manager.launch(
+        createTestApplicationId(),
+      ) as FakeApplicationInstance;
+
+      instance.backgroundError = StateError('Background callback failed.');
+
+      await expectLater(manager.setBackground(instance.id), throwsStateError);
+
+      expect(instance.state, ApplicationLifecycleState.stopped);
+      expect(manager.getInstance(instance.id), isNull);
+      expect(manager.foregroundApplicationId, isNull);
+    });
+    test('cleans up application when suspension fails', () async {
+      const String firstId = 'com.example.first';
+      const String secondId = 'com.example.second';
+
+      registerApplication(
+        id: firstId,
+        backgroundPolicy: ApplicationBackgroundPolicy.suspend,
+      );
+
+      registerApplication(id: secondId);
+
+      final FakeApplicationInstance instance = await manager.launch(
+        ApplicationId(firstId),
+      ) as FakeApplicationInstance;
+
+      instance.suspendError = StateError('Suspension failed.');
+
+      await expectLater(
+        manager.launch(ApplicationId(secondId)),
+        throwsStateError,
+      );
+
+      expect(instance.state, ApplicationLifecycleState.stopped);
+      expect(manager.getInstance(ApplicationId(firstId)), isNull);
+    });
+    test('cleans up an application when resumption fails', () async {
+      const String firstId = 'com.example.first';
+      const String secondId = 'com.example.second';
+
+      registerApplication(
+        id: firstId,
+        backgroundPolicy: ApplicationBackgroundPolicy.suspend,
+      );
+
+      registerApplication(id: secondId);
+
+      final FakeApplicationInstance instance = await manager.launch(
+        ApplicationId(firstId),
+      ) as FakeApplicationInstance;
+
+      await manager.launch(ApplicationId(secondId));
+
+      instance.resumeError = StateError('Resumption failed.');
+
+      await expectLater(
+        manager.launch(ApplicationId(firstId)),
+        throwsStateError,
+      );
+
+      expect(instance.state, ApplicationLifecycleState.stopped);
+      expect(manager.getInstance(ApplicationId(firstId)), isNull);
     });
   });
 }

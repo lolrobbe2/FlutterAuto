@@ -18,4 +18,8 @@ abstract interface class ApplicationInstance {
   Future<void> setBackground();
 
   Future<void> stop();
+
+  Future<void> suspend();
+
+  Future<void> resume();
 }

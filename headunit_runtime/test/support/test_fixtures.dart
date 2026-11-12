@@ -5,8 +5,7 @@ import 'package:headunit_runtime/headunit_runtime.dart';
 
 const String testApplicationId = 'com.example.test_app';
 
-final CapabilityId audioCapability =
-    CapabilityId('audio.sessions.manage');
+final CapabilityId audioCapability = CapabilityId('audio.sessions.manage');
 
 ApplicationId createTestApplicationId([String value = testApplicationId]) {
   return ApplicationId(value);
@@ -31,16 +30,16 @@ ApplicationRegistration createTestRegistration({
   String id = testApplicationId,
   Iterable<CapabilityId>? requestedCapabilities,
   Iterable<CapabilityId>? grantedCapabilities,
+  ApplicationBackgroundPolicy backgroundPolicy =
+      ApplicationBackgroundPolicy.keepMounted,
 }) {
   final List<CapabilityId> requested =
       requestedCapabilities?.toList() ?? [audioCapability];
 
   return ApplicationRegistration(
-    manifest: createTestManifest(
-      id: id,
-      requestedCapabilities: requested,
-    ),
+    manifest: createTestManifest(id: id, requestedCapabilities: requested),
     grantedCapabilities: grantedCapabilities ?? requested,
+    backgroundPolicy: backgroundPolicy,
   );
 }
 
@@ -95,10 +94,12 @@ class FakeApplicationRuntime implements ApplicationRuntime {
 
   Object? createError;
   Object? startError;
+  Object? foregroundError;
+  Object? backgroundError;
+  Object? suspendError;
+  Object? resumeError;
 
-  FakeApplicationRuntime({
-    this.kind = ApplicationRuntimeKind.flutter,
-  });
+  FakeApplicationRuntime({this.kind = ApplicationRuntimeKind.flutter});
 
   @override
   Future<ApplicationInstance> createInstance({
@@ -122,10 +123,13 @@ class FakeApplicationRuntime implements ApplicationRuntime {
       throw error;
     }
 
-    final FakeApplicationInstance instance =
-        FakeApplicationInstance(
+    final FakeApplicationInstance instance = FakeApplicationInstance(
       id: manifest.id,
       startError: startError,
+      foregroundError: foregroundError,
+      backgroundError: backgroundError,
+      suspendError: suspendError,
+      resumeError: resumeError,
     );
 
     instances.add(instance);
@@ -142,11 +146,15 @@ class FakeApplicationInstance implements ApplicationInstance {
       StreamController<ApplicationLifecycleEvent>.broadcast();
 
   final List<ApplicationLifecycleState> transitionHistory = [];
-
-  ApplicationLifecycleState _state =
-      ApplicationLifecycleState.stopped;
+  int suspendCalls = 0;
+  int resumeCalls = 0;
+  ApplicationLifecycleState _state = ApplicationLifecycleState.stopped;
 
   Object? startError;
+  Object? foregroundError;
+  Object? backgroundError;
+  Object? suspendError;
+  Object? resumeError;
 
   int startCalls = 0;
   int foregroundCalls = 0;
@@ -156,14 +164,16 @@ class FakeApplicationInstance implements ApplicationInstance {
   FakeApplicationInstance({
     required this.id,
     this.startError,
+    this.foregroundError,
+    this.backgroundError,
+    this.suspendError,
+    this.resumeError,
   });
-
   @override
   ApplicationLifecycleState get state => _state;
 
   @override
-  Stream<ApplicationLifecycleEvent> get lifecycleEvents =>
-      _events.stream;
+  Stream<ApplicationLifecycleEvent> get lifecycleEvents => _events.stream;
 
   @override
   Future<void> start() async {
@@ -185,12 +195,46 @@ class FakeApplicationInstance implements ApplicationInstance {
   Future<void> setForeground() async {
     foregroundCalls++;
 
+    if (foregroundError != null) {
+      _transition(ApplicationLifecycleState.failed);
+      throw foregroundError!;
+    }
+
     _transition(ApplicationLifecycleState.foreground);
   }
 
   @override
   Future<void> setBackground() async {
     backgroundCalls++;
+
+    if (backgroundError != null) {
+      _transition(ApplicationLifecycleState.failed);
+      throw backgroundError!;
+    }
+
+    _transition(ApplicationLifecycleState.background);
+  }
+
+  @override
+  Future<void> suspend() async {
+    suspendCalls++;
+
+    if (suspendError != null) {
+      _transition(ApplicationLifecycleState.failed);
+      throw suspendError!;
+    }
+
+    _transition(ApplicationLifecycleState.suspended);
+  }
+
+  @override
+  Future<void> resume() async {
+    resumeCalls++;
+
+    if (resumeError != null) {
+      _transition(ApplicationLifecycleState.failed);
+      throw resumeError!;
+    }
 
     _transition(ApplicationLifecycleState.background);
   }

@@ -98,5 +98,40 @@ void main() {
         isTrue,
       );
     });
+    test('background can transition to suspended', () {
+      expect(
+        ApplicationLifecycleState.background.canTransitionTo(
+          ApplicationLifecycleState.suspended,
+        ),
+        isTrue,
+      );
+    });
+
+    test('suspended can transition back to background', () {
+      expect(
+        ApplicationLifecycleState.suspended.canTransitionTo(
+          ApplicationLifecycleState.background,
+        ),
+        isTrue,
+      );
+    });
+
+    test('suspended cannot transition directly to foreground', () {
+      expect(
+        ApplicationLifecycleState.suspended.canTransitionTo(
+          ApplicationLifecycleState.foreground,
+        ),
+        isFalse,
+      );
+    });
+
+    test('suspended can be stopped', () {
+      expect(
+        ApplicationLifecycleState.suspended.canTransitionTo(
+          ApplicationLifecycleState.stopping,
+        ),
+        isTrue,
+      );
+    });
   });
 }

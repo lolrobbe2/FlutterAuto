@@ -18,13 +18,10 @@ typedef HeadunitApplicationSurfaceBuilder = Widget Function(
 class HeadunitShell extends StatelessWidget {
   final ApplicationManager applicationManager;
 
-  /// Displayed when no application is in the foreground.
   final WidgetBuilder homeBuilder;
 
-  /// Allows the product integrator to define the shell layout.
   final HeadunitShellLayoutBuilder? layoutBuilder;
 
-  /// Optional renderer for application types other than Flutter.
   final HeadunitApplicationSurfaceBuilder? applicationBuilder;
 
   const HeadunitShell({
@@ -39,66 +36,60 @@ class HeadunitShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<ApplicationManagerEvent>(
       stream: applicationManager.events,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<ApplicationManagerEvent> snapshot,
-      ) {
-        final ApplicationId? foregroundId =
-            applicationManager.foregroundApplicationId;
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<ApplicationManagerEvent> snapshot,
+          ) {
+            final ApplicationId? foregroundId =
+                applicationManager.foregroundApplicationId;
 
-        final Map<ApplicationId, ApplicationInstance> instances =
-            applicationManager.runningApplications;
+            final List<MapEntry<ApplicationId, ApplicationInstance>>
+            instances = applicationManager.runningApplications.entries
+                .where((MapEntry<ApplicationId, ApplicationInstance> entry) {
+                  return entry.value.state ==
+                          ApplicationLifecycleState.foreground ||
+                      entry.value.state == ApplicationLifecycleState.background;
+                })
+                .toList(growable: false);
+            // Index zero is always the home screen.
+            int activeIndex = 0;
 
-        final List<Widget> applicationSurfaces = [];
+            final List<Widget> children = [
+              KeyedSubtree(
+                key: const ValueKey<String>('headunit-home'),
+                child: homeBuilder(context),
+              ),
+            ];
 
-        for (final MapEntry<ApplicationId, ApplicationInstance> entry
-            in instances.entries) {
-          final ApplicationInstance instance = entry.value;
+            for (int index = 0; index < instances.length; index++) {
+              final MapEntry<ApplicationId, ApplicationInstance> entry =
+                  instances[index];
 
-          final bool isForeground = entry.key == foregroundId;
+              if (entry.key == foregroundId) {
+                activeIndex = index + 1;
+              }
 
-          applicationSurfaces.add(
-            Positioned.fill(
-              child: Offstage(
-                offstage: !isForeground,
-                child: TickerMode(
-                  enabled: isForeground,
-                  child: KeyedSubtree(
-                    key: ObjectKey(instance),
-                    child: _buildApplicationSurface(
-                      context,
-                      instance,
-                    ),
+              children.add(
+                KeyedSubtree(
+                  key: ValueKey<ApplicationId>(entry.key),
+                  child: TickerMode(
+                    enabled: entry.key == foregroundId,
+                    child: _buildApplicationSurface(context, entry.value),
                   ),
                 ),
-              ),
-            ),
-          );
-        }
+              );
+            }
 
-        final bool foregroundExists =
-            foregroundId != null &&
-            instances.containsKey(foregroundId);
+            final Widget applicationSurface = IndexedStack(
+              index: activeIndex,
+              sizing: StackFit.expand,
+              children: children,
+            );
 
-        if (!foregroundExists) {
-          applicationSurfaces.add(
-            Positioned.fill(
-              child: homeBuilder(context),
-            ),
-          );
-        }
-
-        final Widget applicationSurface = Stack(
-          fit: StackFit.expand,
-          children: applicationSurfaces,
-        );
-
-        return layoutBuilder?.call(
-              context,
-              applicationSurface,
-            ) ??
-            applicationSurface;
-      },
+            return layoutBuilder?.call(context, applicationSurface) ??
+                applicationSurface;
+          },
     );
   }
 

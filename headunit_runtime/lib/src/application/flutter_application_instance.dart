@@ -14,8 +14,7 @@ class FlutterApplicationInstance implements ApplicationInstance {
   final StreamController<ApplicationLifecycleEvent> _events =
       StreamController<ApplicationLifecycleEvent>.broadcast();
 
-  ApplicationLifecycleState _state =
-      ApplicationLifecycleState.stopped;
+  ApplicationLifecycleState _state = ApplicationLifecycleState.stopped;
 
   Future<void>? _stopFuture;
 
@@ -23,15 +22,14 @@ class FlutterApplicationInstance implements ApplicationInstance {
     required this.id,
     required HeadunitApplication application,
     required HeadunitApplicationContext context,
-  })  : _application = application,
-        _context = context;
+  }) : _application = application,
+       _context = context;
 
   @override
   ApplicationLifecycleState get state => _state;
 
   @override
-  Stream<ApplicationLifecycleEvent> get lifecycleEvents =>
-      _events.stream;
+  Stream<ApplicationLifecycleEvent> get lifecycleEvents => _events.stream;
 
   /// The widget representing this application.
   ///
@@ -41,9 +39,7 @@ class FlutterApplicationInstance implements ApplicationInstance {
   @override
   Future<void> start() async {
     if (_state != ApplicationLifecycleState.stopped) {
-      throw StateError(
-        'Cannot start application $id from ${_state.name}.',
-      );
+      throw StateError('Cannot start application $id from ${_state.name}.');
     }
 
     _transition(ApplicationLifecycleState.starting);
@@ -62,18 +58,56 @@ class FlutterApplicationInstance implements ApplicationInstance {
   Future<void> setForeground() async {
     _ensureState(ApplicationLifecycleState.background);
 
-    await _application.onForeground(_context);
+    try {
+      await _application.onForeground(_context);
 
-    _transition(ApplicationLifecycleState.foreground);
+      _transition(ApplicationLifecycleState.foreground);
+    } catch (_) {
+      _transition(ApplicationLifecycleState.failed);
+      rethrow;
+    }
   }
 
   @override
   Future<void> setBackground() async {
     _ensureState(ApplicationLifecycleState.foreground);
 
-    await _application.onBackground(_context);
+    try {
+      await _application.onBackground(_context);
 
-    _transition(ApplicationLifecycleState.background);
+      _transition(ApplicationLifecycleState.background);
+    } catch (_) {
+      _transition(ApplicationLifecycleState.failed);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> suspend() async {
+    _ensureState(ApplicationLifecycleState.background);
+
+    try {
+      await _application.onSuspend(_context);
+
+      _transition(ApplicationLifecycleState.suspended);
+    } catch (_) {
+      _transition(ApplicationLifecycleState.failed);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> resume() async {
+    _ensureState(ApplicationLifecycleState.suspended);
+
+    try {
+      await _application.onResume(_context);
+
+      _transition(ApplicationLifecycleState.background);
+    } catch (_) {
+      _transition(ApplicationLifecycleState.failed);
+      rethrow;
+    }
   }
 
   @override

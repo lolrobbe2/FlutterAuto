@@ -1,13 +1,18 @@
 import 'package:headunit_contracts/headunit_contracts.dart';
 
+import 'application_background_policy.dart';
+
 class ApplicationRegistration {
   final ApplicationManifest manifest;
 
   final Set<CapabilityId> grantedCapabilities;
 
+  final ApplicationBackgroundPolicy backgroundPolicy;
+
   ApplicationRegistration({
     required this.manifest,
     required Iterable<CapabilityId> grantedCapabilities,
+    this.backgroundPolicy = ApplicationBackgroundPolicy.keepMounted,
   }) : grantedCapabilities =
            Set<CapabilityId>.unmodifiable(grantedCapabilities) {
     final Set<CapabilityId> requestedCapabilities =

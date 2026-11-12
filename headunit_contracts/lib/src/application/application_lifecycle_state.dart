@@ -3,10 +3,10 @@ enum ApplicationLifecycleState {
   starting,
   foreground,
   background,
+  suspended,
   stopping,
   failed,
 }
-
 extension ApplicationLifecycleStateTransitions
     on ApplicationLifecycleState {
   bool canTransitionTo(ApplicationLifecycleState next) {
@@ -27,6 +27,12 @@ extension ApplicationLifecycleStateTransitions
 
       case ApplicationLifecycleState.background:
         return next == ApplicationLifecycleState.foreground ||
+            next == ApplicationLifecycleState.suspended ||
+            next == ApplicationLifecycleState.stopping ||
+            next == ApplicationLifecycleState.failed;
+
+      case ApplicationLifecycleState.suspended:
+        return next == ApplicationLifecycleState.background ||
             next == ApplicationLifecycleState.stopping ||
             next == ApplicationLifecycleState.failed;
 

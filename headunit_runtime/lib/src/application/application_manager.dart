@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:headunit_contracts/headunit_contracts.dart';
 
+import '../../headunit_runtime.dart';
 import '../services/service_registry.dart';
 import 'application_registration.dart';
 import 'application_manager_event.dart';
@@ -24,6 +25,7 @@ class ApplicationManager {
   bool _disposing = false;
   bool _disposed = false;
   Future<void>? _disposalFuture;
+  Future<void> _transitionQueue = Future<void>.value();
 
   ApplicationManager({required ServiceRegistry serviceRegistry})
     : _serviceRegistry = serviceRegistry;
@@ -137,26 +139,37 @@ class ApplicationManager {
     ApplicationInstance? instance = _instances[id];
 
     if (instance != null) {
-      if (instance.state == ApplicationLifecycleState.foreground) {
-        return instance;
-      }
+      switch (instance.state) {
+        case ApplicationLifecycleState.foreground:
+          return instance;
 
-      if (instance.state == ApplicationLifecycleState.background) {
-        await setForeground(id);
-        return instance;
-      }
+        case ApplicationLifecycleState.background:
+          await setForeground(id);
+          return instance;
 
-      if (instance.state == ApplicationLifecycleState.starting ||
-          instance.state == ApplicationLifecycleState.stopping) {
-        throw StateError(
-          'Application $id is currently ${instance.state.name}.',
-        );
-      }
+        case ApplicationLifecycleState.suspended:
+          try {
+            await instance.resume();
+            await setForeground(id);
 
-      _instances.remove(id);
-      instance = null;
+            return instance;
+          } catch (_) {
+            await _cleanupFailedInstance(id, instance);
+            rethrow;
+          }
+
+        case ApplicationLifecycleState.starting:
+        case ApplicationLifecycleState.stopping:
+          throw StateError(
+            'Application $id is currently ${instance.state.name}.',
+          );
+
+        case ApplicationLifecycleState.failed:
+        case ApplicationLifecycleState.stopped:
+          await _cleanupFailedInstance(id, instance);
+          instance = null;
+      }
     }
-
     final ApplicationRegistration? registration = _registrations[id];
 
     if (registration == null) {
@@ -226,7 +239,45 @@ class ApplicationManager {
     }
   }
 
-  Future<void> setForeground(ApplicationId id) async {
+  Future<void> setForeground(ApplicationId id) {
+    return _enqueueTransition(() => _setForegroundInternal(id));
+  }
+
+  Future<void> setBackground(ApplicationId id) {
+    return _enqueueTransition(() => _setBackgroundInternal(id));
+  }
+
+  Future<void> _cleanupFailedInstance(
+    ApplicationId id,
+    ApplicationInstance instance,
+  ) async {
+    try {
+      await instance.stop();
+    } catch (_) {
+      // Continue removing the failed application.
+    }
+
+    if (identical(_instances[id], instance)) {
+      _instances.remove(id);
+    }
+
+    if (_foregroundApplicationId == id) {
+      _foregroundApplicationId = null;
+
+      _emitEvent(
+        ApplicationManagerEventType.foregroundChanged,
+        applicationId: id,
+        previousForegroundApplicationId: id,
+      );
+    }
+
+    _emitEvent(
+      ApplicationManagerEventType.applicationsChanged,
+      applicationId: id,
+    );
+  }
+
+  Future<void> _setForegroundInternal(ApplicationId id) async {
     _ensureActive();
 
     final ApplicationInstance? target = _instances[id];
@@ -236,19 +287,18 @@ class ApplicationManager {
     }
 
     if (target.state == ApplicationLifecycleState.foreground) {
-      if (_foregroundApplicationId != id) {
-        final ApplicationId? previousId = _foregroundApplicationId;
-
-        _foregroundApplicationId = id;
-
-        _emitEvent(
-          ApplicationManagerEventType.foregroundChanged,
-          applicationId: id,
-          previousForegroundApplicationId: previousId,
-        );
-      }
-
+      _foregroundApplicationId = id;
       return;
+    }
+
+    // Restore a suspended application before switching to it.
+    if (target.state == ApplicationLifecycleState.suspended) {
+      try {
+        await target.resume();
+      } catch (_) {
+        await _cleanupFailedInstance(id, target);
+        rethrow;
+      }
     }
 
     if (target.state != ApplicationLifecycleState.background) {
@@ -263,12 +313,8 @@ class ApplicationManager {
         ? null
         : _instances[previousId];
 
-    bool previousBackgrounded = false;
-
     if (previous != null && previousId != id) {
-      await previous.setBackground();
-      previousBackgrounded = true;
-      _foregroundApplicationId = null;
+      await _setBackgroundInternal(previousId!);
     }
 
     try {
@@ -282,25 +328,41 @@ class ApplicationManager {
         previousForegroundApplicationId: previousId,
       );
     } catch (_) {
-      if (previousBackgrounded && previous != null) {
-        try {
-          await previous.setForeground();
-          _foregroundApplicationId = previousId;
-        } catch (_) {
-          _foregroundApplicationId = null;
+      if (target.state == ApplicationLifecycleState.failed) {
+        await _cleanupFailedInstance(id, target);
+      }
 
-          _emitEvent(
-            ApplicationManagerEventType.foregroundChanged,
-            applicationId: id,
-            previousForegroundApplicationId: previousId,
-          );
+      // Try to restore the previous application if it is still registered
+      // as a running instance.
+      if (previous != null &&
+          identical(_instances[previousId], previous) &&
+          previous.state != ApplicationLifecycleState.failed) {
+        try {
+          if (previous.state == ApplicationLifecycleState.suspended) {
+            await previous.resume();
+          }
+
+          if (previous.state == ApplicationLifecycleState.background) {
+            await previous.setForeground();
+
+            _foregroundApplicationId = previousId;
+
+            _emitEvent(
+              ApplicationManagerEventType.foregroundChanged,
+              applicationId: previousId,
+              previousForegroundApplicationId: id,
+            );
+          }
+        } catch (_) {
+          await _cleanupFailedInstance(previousId!, previous);
         }
       }
+
       rethrow;
     }
   }
 
-  Future<void> setBackground(ApplicationId id) async {
+  Future<void> _setBackgroundInternal(ApplicationId id) async {
     _ensureActive();
 
     final ApplicationInstance? instance = _instances[id];
@@ -313,7 +375,15 @@ class ApplicationManager {
       return;
     }
 
-    await instance.setBackground();
+    try {
+      await instance.setBackground();
+    } catch (_) {
+      if (instance.state == ApplicationLifecycleState.failed) {
+        await _cleanupFailedInstance(id, instance);
+      }
+
+      rethrow;
+    }
 
     if (_foregroundApplicationId == id) {
       _foregroundApplicationId = null;
@@ -324,11 +394,36 @@ class ApplicationManager {
         previousForegroundApplicationId: id,
       );
     }
+
+    final ApplicationRegistration registration = _registrations[id]!;
+
+    switch (registration.backgroundPolicy) {
+      case ApplicationBackgroundPolicy.keepMounted:
+        break;
+
+      case ApplicationBackgroundPolicy.suspend:
+        try {
+          await instance.suspend();
+
+          _emitEvent(
+            ApplicationManagerEventType.applicationsChanged,
+            applicationId: id,
+          );
+        } catch (_) {
+          await _cleanupFailedInstance(id, instance);
+          rethrow;
+        }
+
+      case ApplicationBackgroundPolicy.stop:
+        await _stopInternal(id);
+    }
   }
 
-  Future<void> stop(ApplicationId id) async {
-    _ensureActive();
+  Future<void> stop(ApplicationId id) {
+    return _enqueueTransition(() => _stopInternal(id));
+  }
 
+  Future<void> _stopInternal(ApplicationId id) async {
     final ApplicationInstance? instance = _instances[id];
 
     if (instance == null) {
@@ -398,6 +493,8 @@ class ApplicationManager {
       }
     }
 
+    await _transitionQueue;
+
     Object? firstError;
     StackTrace? firstStackTrace;
 
@@ -448,5 +545,29 @@ class ApplicationManager {
         timestamp: DateTime.now(),
       ),
     );
+  }
+
+  Future<void> _enqueueTransition(Future<void> Function() operation) {
+    final Future<void> previous = _transitionQueue;
+
+    final Completer<void> release = Completer<void>();
+
+    _transitionQueue = release.future;
+
+    return _executeTransition(previous, release, operation);
+  }
+
+  Future<void> _executeTransition(
+    Future<void> previous,
+    Completer<void> release,
+    Future<void> Function() operation,
+  ) async {
+    await previous;
+
+    try {
+      await operation();
+    } finally {
+      release.complete();
+    }
   }
 }
