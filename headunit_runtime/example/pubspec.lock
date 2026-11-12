@@ -158,6 +158,13 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
+  headunit_sdk:
+    dependency: transitive
+    description:
+      path: "../../headunit_sdk"
+      relative: true
+    source: path
+    version: "0.0.1"
   hooks:
     dependency: transitive
     description:

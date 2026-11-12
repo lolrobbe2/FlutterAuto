@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:headunit_contracts/headunit_contracts.dart';
 
 import '../services/service_registry.dart';
 import 'application_registration.dart';
+import 'application_manager_event.dart';
 
 class ApplicationManager {
   final ServiceRegistry _serviceRegistry;
@@ -13,6 +16,9 @@ class ApplicationManager {
   final Map<ApplicationRuntimeKind, ApplicationRuntime> _runtimes = {};
 
   final Map<ApplicationId, Future<ApplicationInstance>> _launchOperations = {};
+
+  final StreamController<ApplicationManagerEvent> _events =
+      StreamController<ApplicationManagerEvent>.broadcast();
 
   ApplicationId? _foregroundApplicationId;
   bool _disposing = false;
@@ -30,6 +36,7 @@ class ApplicationManager {
   Map<ApplicationId, ApplicationRegistration> get registrations =>
       Map<ApplicationId, ApplicationRegistration>.unmodifiable(_registrations);
 
+  Stream<ApplicationManagerEvent> get events => _events.stream;
   void registerRuntime(ApplicationRuntime runtime) {
     _ensureActive();
 
@@ -71,6 +78,11 @@ class ApplicationManager {
     }
 
     _registrations[id] = registration;
+
+    _emitEvent(
+      ApplicationManagerEventType.applicationsChanged,
+      applicationId: id,
+    );
   }
 
   void unregisterApplication(ApplicationId id) {
@@ -82,7 +94,14 @@ class ApplicationManager {
       );
     }
 
-    _registrations.remove(id);
+    final ApplicationRegistration? removed = _registrations.remove(id);
+
+    if (removed != null) {
+      _emitEvent(
+        ApplicationManagerEventType.applicationsChanged,
+        applicationId: id,
+      );
+    }
   }
 
   ApplicationRegistration? getRegistration(ApplicationId id) {
@@ -174,6 +193,11 @@ class ApplicationManager {
 
     _instances[id] = newInstance;
 
+    _emitEvent(
+      ApplicationManagerEventType.applicationsChanged,
+      applicationId: id,
+    );
+
     try {
       await newInstance.start();
       if (newInstance.state != ApplicationLifecycleState.background) {
@@ -212,7 +236,18 @@ class ApplicationManager {
     }
 
     if (target.state == ApplicationLifecycleState.foreground) {
-      _foregroundApplicationId = id;
+      if (_foregroundApplicationId != id) {
+        final ApplicationId? previousId = _foregroundApplicationId;
+
+        _foregroundApplicationId = id;
+
+        _emitEvent(
+          ApplicationManagerEventType.foregroundChanged,
+          applicationId: id,
+          previousForegroundApplicationId: previousId,
+        );
+      }
+
       return;
     }
 
@@ -228,26 +263,39 @@ class ApplicationManager {
         ? null
         : _instances[previousId];
 
+    bool previousBackgrounded = false;
+
     if (previous != null && previousId != id) {
       await previous.setBackground();
+      previousBackgrounded = true;
       _foregroundApplicationId = null;
     }
 
     try {
       await target.setForeground();
+
       _foregroundApplicationId = id;
+
+      _emitEvent(
+        ApplicationManagerEventType.foregroundChanged,
+        applicationId: id,
+        previousForegroundApplicationId: previousId,
+      );
     } catch (_) {
-      // Restore the previous foreground application if possible.
-      if (previous != null &&
-          previous.state == ApplicationLifecycleState.background) {
+      if (previousBackgrounded && previous != null) {
         try {
           await previous.setForeground();
           _foregroundApplicationId = previousId;
         } catch (_) {
           _foregroundApplicationId = null;
+
+          _emitEvent(
+            ApplicationManagerEventType.foregroundChanged,
+            applicationId: id,
+            previousForegroundApplicationId: previousId,
+          );
         }
       }
-
       rethrow;
     }
   }
@@ -269,6 +317,12 @@ class ApplicationManager {
 
     if (_foregroundApplicationId == id) {
       _foregroundApplicationId = null;
+
+      _emitEvent(
+        ApplicationManagerEventType.foregroundChanged,
+        applicationId: id,
+        previousForegroundApplicationId: id,
+      );
     }
   }
 
@@ -288,7 +342,18 @@ class ApplicationManager {
 
       if (_foregroundApplicationId == id) {
         _foregroundApplicationId = null;
+
+        _emitEvent(
+          ApplicationManagerEventType.foregroundChanged,
+          applicationId: id,
+          previousForegroundApplicationId: id,
+        );
       }
+
+      _emitEvent(
+        ApplicationManagerEventType.applicationsChanged,
+        applicationId: id,
+      );
     }
   }
 
@@ -350,7 +415,7 @@ class ApplicationManager {
         _instances.remove(id);
       }
     }
-
+    await _events.close();
     _foregroundApplicationId = null;
     _disposed = true;
 
@@ -363,5 +428,25 @@ class ApplicationManager {
     if (_disposed || _disposing) {
       throw StateError('ApplicationManager is disposing or disposed.');
     }
+  }
+
+  void _emitEvent(
+    ApplicationManagerEventType type, {
+    ApplicationId? applicationId,
+    ApplicationId? previousForegroundApplicationId,
+  }) {
+    if (_events.isClosed) {
+      return;
+    }
+
+    _events.add(
+      ApplicationManagerEvent(
+        type: type,
+        applicationId: applicationId,
+        previousForegroundApplicationId: previousForegroundApplicationId,
+        foregroundApplicationId: _foregroundApplicationId,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 }

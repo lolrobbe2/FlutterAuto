@@ -6,6 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:headunit_contracts/headunit_contracts.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
 
+import 'runtime_example_application.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -35,13 +37,13 @@ class RuntimeExamplePage extends StatefulWidget {
   const RuntimeExamplePage({super.key});
 
   @override
-  State<RuntimeExamplePage> createState() =>
-      _RuntimeExamplePageState();
+  State<RuntimeExamplePage> createState() => _RuntimeExamplePageState();
 }
 
 class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
   final HeadunitRuntime _runtime = HeadunitRuntime();
 
+  Widget? _managedApplicationWidget;
   AudioService? _audioService;
 
   AudioSession? _activeSession;
@@ -60,36 +62,63 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
     _initializeRuntime();
   }
 
+  Widget _buildManagedApplicationCard() {
+    return Card(
+      child: SizedBox(
+        height: 200,
+        child:
+            _managedApplicationWidget ??
+            const Center(child: Text('No managed application running')),
+      ),
+    );
+  }
+
   Future<void> _initializeRuntime() async {
     try {
       await _runtime.initialize();
 
-      final ApplicationLaunchContext launchContext =
-          ApplicationLaunchContext(
-        applicationId: ApplicationId(
-          'com.example.runtime_example',
-        ),
-        grantedCapabilities: [
-          CapabilityId('audio.sessions.manage'),
-        ],
-        productId: 'runtime_example',
-        locale: 'en',
+      ApplicationId applicationId = ApplicationId(
+        'com.example.runtime_example',
       );
 
-      final ServiceBroker broker =
-          _runtime.createServiceBroker(launchContext);
+      final FlutterApplicationRuntime flutterRuntime =
+          FlutterApplicationRuntime();
 
-      final AudioService audioService =
-          broker.getService(AudioService.serviceKey);
+      flutterRuntime.registerApplication(
+        id: applicationId,
+        factory: RuntimeExampleApplication.new,
+      );
+
+      final ApplicationManager manager = _runtime.applicationManager;
+
+      manager.registerRuntime(flutterRuntime);
+
+      manager.registerApplication(
+        ApplicationRegistration(
+          manifest: ApplicationManifest(
+            id: applicationId,
+            name: 'Runtime Example',
+            version: '1.0.0',
+            minimumFrameworkVersion: '0.1.0',
+            runtime: ApplicationRuntimeKind.flutter,
+            requestedCapabilities: [CapabilityId('audio.sessions.manage')],
+          ),
+          grantedCapabilities: [CapabilityId('audio.sessions.manage')],
+        ),
+      );
+
+      final FlutterApplicationInstance instance =
+          await manager.launch(applicationId) as FlutterApplicationInstance;
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _audioService = audioService;
+        _audioService = _runtime.audioService;
+        _managedApplicationWidget = instance.widget;
         _initializing = false;
-        _status = 'Runtime initialized successfully.';
+        _status = 'Runtime and application initialized successfully.';
       });
     } catch (error) {
       if (!mounted) {
@@ -127,8 +156,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
       return;
     }
 
-    final AudioStreamId streamId =
-        AudioStreamId(_nextStreamId++);
+    final AudioStreamId streamId = AudioStreamId(_nextStreamId++);
 
     try {
       final AudioStream stream = session.createStream(
@@ -251,12 +279,9 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
 
   Future<void> _testPermissionDenial() async {
     try {
-      final ServiceBroker restrictedBroker =
-          _runtime.createServiceBroker(
+      final ServiceBroker restrictedBroker = _runtime.createServiceBroker(
         ApplicationLaunchContext(
-          applicationId: ApplicationId(
-            'com.example.restricted_app',
-          ),
+          applicationId: ApplicationId('com.example.restricted_app'),
         ),
       );
 
@@ -319,16 +344,12 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
 
     final int frameCount = sampleRate * durationSeconds;
 
-    final ByteData data = ByteData(
-      frameCount * channels * 2,
-    );
+    final ByteData data = ByteData(frameCount * channels * 2);
 
     for (int frame = 0; frame < frameCount; frame++) {
       final double time = frame / sampleRate;
 
-      final double wave = math.sin(
-        2 * math.pi * frequency * time,
-      );
+      final double wave = math.sin(2 * math.pi * frequency * time);
 
       final int sample = (wave * amplitude * 32767).round();
 
@@ -349,11 +370,9 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
 
   @override
   Widget build(BuildContext context) {
-    final int sessionCount =
-        _audioService?.sessions.length ?? 0;
+    final int sessionCount = _audioService?.sessions.length ?? 0;
 
-    final int streamCount =
-        _activeSession?.streams.length ?? 0;
+    final int streamCount = _activeSession?.streams.length ?? 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -372,6 +391,8 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
         padding: const EdgeInsets.all(24),
         children: [
           _buildRuntimeCard(),
+          const SizedBox(height: 16),
+          _buildManagedApplicationCard(),
           const SizedBox(height: 16),
           _buildServiceCard(sessionCount),
           const SizedBox(height: 16),
@@ -394,10 +415,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Runtime',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Runtime', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -407,8 +425,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
               ],
             ),
             const SizedBox(height: 12),
-            if (_initializing)
-              const LinearProgressIndicator(),
+            if (_initializing) const LinearProgressIndicator(),
           ],
         ),
       ),
@@ -461,16 +478,12 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
               runSpacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: _audioService == null
-                      ? null
-                      : _createSession,
+                  onPressed: _audioService == null ? null : _createSession,
                   icon: const Icon(Icons.add),
                   label: const Text('Create session'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _activeSession == null
-                      ? null
-                      : _removeSession,
+                  onPressed: _activeSession == null ? null : _removeSession,
                   icon: const Icon(Icons.delete),
                   label: const Text('Remove session'),
                 ),
@@ -505,31 +518,24 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
               runSpacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: _activeSession == null ||
-                          _shuttingDown
+                  onPressed: _activeSession == null || _shuttingDown
                       ? null
                       : _createAndPlayTestTone,
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('Play test tone'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _activeStream == null
-                      ? null
-                      : _pauseStream,
+                  onPressed: _activeStream == null ? null : _pauseStream,
                   icon: const Icon(Icons.pause),
                   label: const Text('Pause'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _activeStream == null
-                      ? null
-                      : _resumeStream,
+                  onPressed: _activeStream == null ? null : _resumeStream,
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('Resume'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _activeStream == null
-                      ? null
-                      : _stopStream,
+                  onPressed: _activeStream == null ? null : _stopStream,
                   icon: const Icon(Icons.stop),
                   label: const Text('Stop and remove'),
                 ),
@@ -559,9 +565,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed: _audioService == null
-                  ? null
-                  : _testPermissionDenial,
+              onPressed: _audioService == null ? null : _testPermissionDenial,
               icon: const Icon(Icons.security),
               label: const Text('Test permission denial'),
             ),
@@ -578,10 +582,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Status',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Status', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(_status),
           ],
