@@ -104,9 +104,16 @@ void main() {
     testWidgets('displays the home screen when no application is foreground', (
       WidgetTester tester,
     ) async {
+      debugPrint('TEST: started');
+
       final HeadunitRuntime runtime = await createInitializedRuntime();
 
-      addTearDown(runtime.dispose);
+      addTearDown(() async {
+
+        await runtime.dispose();
+
+      });
+
 
       await tester.pumpWidget(
         Directionality(
@@ -120,7 +127,9 @@ void main() {
         ),
       );
 
-      expect(find.text('Home screen'), findsOneWidget);      
+
+      expect(find.text('Home screen'), findsOneWidget);
+
     });
 
     // -------------------------------------------------------------------------
