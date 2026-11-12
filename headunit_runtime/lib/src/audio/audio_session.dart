@@ -11,8 +11,8 @@ class AudioSession {
 
   AudioSession._({
     required this.id,
-    required SoLoud soLoud,
-  }) : _soLoud = soLoud;
+    required this._soLoud,
+  });
 
   bool get isClosed => _closed;
 

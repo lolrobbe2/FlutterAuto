@@ -120,7 +120,7 @@ class ApplicationManifest {
       );
     }
 
-    final Object? rawCapabilities = json['requestedCapabilities'] ?? <Object?>[];
+    final Object rawCapabilities = json['requestedCapabilities'] ?? <Object?>[];
 
     if (rawCapabilities is! List) {
       throw FormatException('requestedCapabilities must be a list.');

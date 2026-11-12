@@ -42,7 +42,6 @@ class RuntimeExamplePage extends StatefulWidget {
 class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
   final HeadunitRuntime _runtime = HeadunitRuntime();
 
-  ServiceBroker? _serviceBroker;
   AudioService? _audioService;
 
   AudioSession? _activeSession;
@@ -88,7 +87,6 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
       }
 
       setState(() {
-        _serviceBroker = broker;
         _audioService = audioService;
         _initializing = false;
         _status = 'Runtime initialized successfully.';

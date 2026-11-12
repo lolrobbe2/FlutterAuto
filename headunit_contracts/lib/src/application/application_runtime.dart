@@ -1,3 +1,4 @@
+import '../services/service_broker.dart';
 import 'application_instance.dart';
 import 'application_launch_context.dart';
 import 'application_manifest.dart';
@@ -9,5 +10,6 @@ abstract interface class ApplicationRuntime {
   Future<ApplicationInstance> createInstance({
     required ApplicationManifest manifest,
     required ApplicationLaunchContext context,
+    required ServiceBroker serviceBroker,
   });
-} 
+}

@@ -3,12 +3,14 @@ import 'package:headunit_contracts/headunit_contracts.dart';
 import 'audio/audio_service.dart';
 import 'headunit_runtime_state.dart';
 import 'services/service_registry.dart';
-
-
+import 'application/application_manager.dart';
 
 class HeadunitRuntime {
   final AudioService _audioService = AudioService();
   final ServiceRegistry _serviceRegistry = ServiceRegistry();
+  late final ApplicationManager _applicationManager = ApplicationManager(
+    serviceRegistry: _serviceRegistry,
+  );
 
   HeadunitRuntimeState _state = HeadunitRuntimeState.created;
 
@@ -27,6 +29,16 @@ class HeadunitRuntime {
     }
 
     return _audioService;
+  }
+
+  ApplicationManager get applicationManager {
+    if (!isRunning) {
+      throw StateError(
+        'ApplicationManager is only available while the runtime is running.',
+      );
+    }
+
+    return _applicationManager;
   }
 
   Future<void> initialize() {
@@ -121,9 +133,13 @@ class HeadunitRuntime {
     try {
       //AUDIO SERVICE DISPOSAL
       try {
-        await _audioService.dispose();
+        await _applicationManager.dispose();
       } finally {
-        _serviceRegistry.dispose();
+        try {
+          await _audioService.dispose();
+        } finally {
+          _serviceRegistry.dispose();
+        }
       }
 
       _state = HeadunitRuntimeState.disposed;
