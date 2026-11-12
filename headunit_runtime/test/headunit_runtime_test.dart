@@ -14,16 +14,11 @@ void main() {
     setUp(() {
       audioService = FakeAudioService();
 
-      runtime = HeadunitRuntime(
-        audioService: audioService,
-      );
+      runtime = HeadunitRuntime(audioService: audioService);
     });
 
     test('starts in the created state', () {
-      expect(
-        runtime.state,
-        HeadunitRuntimeState.created,
-      );
+      expect(runtime.state, HeadunitRuntimeState.created);
     });
 
     test('initializes successfully', () async {
@@ -45,24 +40,15 @@ void main() {
     });
 
     test('exposes audio only after initialization', () async {
-      expect(
-        () => runtime.audioService,
-        throwsStateError,
-      );
+      expect(() => runtime.audioService, throwsStateError);
 
       await runtime.initialize();
 
-      expect(
-        identical(runtime.audioService, audioService),
-        isTrue,
-      );
+      expect(identical(runtime.audioService, audioService), isTrue);
     });
 
     test('exposes the application manager only after initialization', () async {
-      expect(
-        () => runtime.applicationManager,
-        throwsStateError,
-      );
+      expect(() => runtime.applicationManager, throwsStateError);
 
       await runtime.initialize();
 
@@ -72,15 +58,11 @@ void main() {
     test('registers AudioService with the service registry', () async {
       await runtime.initialize();
 
-      final ServiceBroker broker =
-          runtime.createServiceBroker(
-        createTestLaunchContext(
-          grantedCapabilities: [audioCapability],
-        ),
+      final ServiceBroker broker = runtime.createServiceBroker(
+        createTestLaunchContext(grantedCapabilities: [audioCapability]),
       );
 
-      final AudioService resolved =
-          broker.getService(AudioService.serviceKey);
+      final AudioService resolved = broker.getService(AudioService.serviceKey);
 
       expect(identical(resolved, audioService), isTrue);
     });
@@ -88,8 +70,7 @@ void main() {
     test('rejects audio access without the required capability', () async {
       await runtime.initialize();
 
-      final ServiceBroker broker =
-          runtime.createServiceBroker(
+      final ServiceBroker broker = runtime.createServiceBroker(
         createTestLaunchContext(),
       );
 
@@ -101,9 +82,7 @@ void main() {
 
     test('does not allow broker creation before initialization', () {
       expect(
-        () => runtime.createServiceBroker(
-          createTestLaunchContext(),
-        ),
+        () => runtime.createServiceBroker(createTestLaunchContext()),
         throwsStateError,
       );
     });
@@ -111,10 +90,7 @@ void main() {
     test('enters failed state when audio initialization fails', () async {
       audioService.initializeResult = false;
 
-      await expectLater(
-        runtime.initialize(),
-        throwsStateError,
-      );
+      await expectLater(runtime.initialize(), throwsStateError);
 
       expect(runtime.state, HeadunitRuntimeState.failed);
       expect(runtime.isRunning, isFalse);
@@ -123,10 +99,7 @@ void main() {
     test('can be disposed after failed initialization', () async {
       audioService.initializeResult = false;
 
-      await expectLater(
-        runtime.initialize(),
-        throwsStateError,
-      );
+      await expectLater(runtime.initialize(), throwsStateError);
 
       await runtime.dispose();
 
@@ -157,23 +130,17 @@ void main() {
     });
 
     test('waits for initialization before disposal', () async {
-      final Completer<bool> initialization =
-          Completer<bool>();
+      final Completer<bool> initialization = Completer<bool>();
 
       audioService.initializeCompleter = initialization;
 
-      final Future<void> initializationFuture =
-          runtime.initialize();
+      final Future<void> initializationFuture = runtime.initialize();
 
-      final Future<void> disposalFuture =
-          runtime.dispose();
+      final Future<void> disposalFuture = runtime.dispose();
 
       initialization.complete(true);
 
-      await Future.wait([
-        initializationFuture,
-        disposalFuture,
-      ]);
+      await Future.wait([initializationFuture, disposalFuture]);
 
       expect(audioService.initializeCalls, 1);
       expect(audioService.disposeCalls, 1);
@@ -183,8 +150,7 @@ void main() {
     test('disposes applications before audio service', () async {
       await runtime.initialize();
 
-      final ApplicationManager manager =
-          runtime.applicationManager;
+      final ApplicationManager manager = runtime.applicationManager;
 
       final FakeApplicationRuntime applicationRuntime =
           FakeApplicationRuntime();
@@ -192,8 +158,9 @@ void main() {
       manager.registerRuntime(applicationRuntime);
       manager.registerApplication(createTestRegistration());
 
-      final ApplicationInstance instance =
-          await manager.launch(createTestApplicationId());
+      final ApplicationInstance instance = await manager.launch(
+        createTestApplicationId(),
+      );
 
       await runtime.dispose();
 
@@ -206,6 +173,40 @@ void main() {
 
       expect(runtime.state, HeadunitRuntimeState.disposed);
       expect(audioService.disposeCalls, 1);
+    });
+    test('reports initialization failures', () async {
+      audioService.initializeResult = false;
+
+      await expectLater(runtime.initialize(), throwsStateError);
+
+      expect(runtime.errorReporter.recentErrors, hasLength(1));
+
+      final ApplicationError error = runtime.errorReporter.recentErrors.single;
+
+      expect(error.applicationId, isNull);
+      expect(error.source, ApplicationErrorSource.startup);
+      expect(error.severity, ApplicationErrorSeverity.critical);
+      expect(error.stackTrace, isNotNull);
+    });
+    test('disposes the error reporter during shutdown', () async {
+      final ApplicationErrorReporter reporter = runtime.errorReporter;
+
+      await runtime.dispose();
+
+      expect(
+        () => reporter.report(
+          ApplicationError(
+            applicationId: null,
+            source: ApplicationErrorSource.runtime,
+            severity: ApplicationErrorSeverity.error,
+            message: 'Test error',
+            error: Exception('Test error'),
+            stackTrace: null,
+            timestamp: DateTime.now(),
+          ),
+        ),
+        throwsStateError,
+      );
     });
   });
 }

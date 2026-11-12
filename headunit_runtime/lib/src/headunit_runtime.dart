@@ -4,9 +4,12 @@ import 'audio/audio_service.dart';
 import 'headunit_runtime_state.dart';
 import 'services/service_registry.dart';
 import 'application/application_manager.dart';
+import 'errors/application_error_reporter_impl.dart';
 
 class HeadunitRuntime {
   final AudioService _audioService;
+  final ApplicationErrorReporterImpl _errorReporter =
+      ApplicationErrorReporterImpl();
   final ServiceRegistry _serviceRegistry = ServiceRegistry();
   late final ApplicationManager _applicationManager = ApplicationManager(
     serviceRegistry: _serviceRegistry,
@@ -32,6 +35,8 @@ class HeadunitRuntime {
 
     return _audioService;
   }
+
+  ApplicationErrorReporter get errorReporter => _errorReporter;
 
   ApplicationManager get applicationManager {
     if (!isRunning) {
@@ -86,8 +91,21 @@ class HeadunitRuntime {
       );
 
       _state = HeadunitRuntimeState.running;
-    } catch (_) {
+    } catch (error, stackTrace) {
       _state = HeadunitRuntimeState.failed;
+
+      _errorReporter.report(
+        ApplicationError(
+          applicationId: null,
+          source: ApplicationErrorSource.startup,
+          severity: ApplicationErrorSeverity.critical,
+          message: 'Headunit runtime initialization failed.',
+          error: error,
+          stackTrace: stackTrace,
+          timestamp: DateTime.now(),
+        ),
+      );
+
       rethrow;
     } finally {
       _initializationFuture = null;
@@ -158,6 +176,13 @@ class HeadunitRuntime {
 
     _serviceRegistry.dispose();
 
+    try {
+      await _errorReporter.dispose();
+    } catch (error, stackTrace) {
+      firstError ??= error;
+      firstStackTrace ??= stackTrace;
+    }
+
     if (firstError != null) {
       _state = HeadunitRuntimeState.failed;
 
@@ -166,5 +191,4 @@ class HeadunitRuntime {
 
     _state = HeadunitRuntimeState.disposed;
   }
-
 }
