@@ -34,8 +34,8 @@ class ExampleApplicationInstance implements ApplicationInstance {
 
   ExampleApplicationInstance({
     required this.id,
-    required ServiceBroker serviceBroker,
-  }) : _serviceBroker = serviceBroker;
+    required this._serviceBroker,
+  });
 
   @override
   ApplicationLifecycleState get state => _state;
@@ -95,5 +95,17 @@ class ExampleApplicationInstance implements ApplicationInstance {
         timestamp: DateTime.now(),
       ),
     );
+  }
+
+  @override
+  Future<void> resume() {
+    // TODO: implement resume
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> suspend() {
+    // TODO: implement suspend
+    throw UnimplementedError();
   }
 }

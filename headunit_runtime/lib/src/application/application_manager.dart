@@ -4,7 +4,6 @@ import 'package:headunit_contracts/headunit_contracts.dart';
 
 import '../../headunit_runtime.dart';
 import '../services/service_registry.dart';
-import 'application_registration.dart';
 import 'application_manager_event.dart';
 
 class ApplicationManager {
@@ -27,8 +26,7 @@ class ApplicationManager {
   Future<void>? _disposalFuture;
   Future<void> _transitionQueue = Future<void>.value();
 
-  ApplicationManager({required ServiceRegistry serviceRegistry})
-    : _serviceRegistry = serviceRegistry;
+  ApplicationManager({required this._serviceRegistry});
 
   ApplicationId? get foregroundApplicationId => _foregroundApplicationId;
 

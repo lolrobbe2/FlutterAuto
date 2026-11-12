@@ -18,8 +18,8 @@ class AudioStream {
   AudioStream._({
     required this.id,
     required this.configuration,
-    required SoLoud soLoud,
-  }) : _soLoud = soLoud {
+    required this._soLoud,
+  }) {
     _nativeStream = _soLoud.setBufferStream(
       bufferingType: BufferingType.released,
       channels: _mapChannels(configuration.channels),

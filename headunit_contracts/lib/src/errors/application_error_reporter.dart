@@ -1,4 +1,3 @@
-
 import 'application_error.dart';
 
 abstract interface class ApplicationErrorReporter {

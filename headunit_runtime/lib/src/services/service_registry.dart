@@ -112,10 +112,9 @@ class _RuntimeServiceBroker implements ServiceBroker {
   final ApplicationLaunchContext _context;
 
   _RuntimeServiceBroker({
-    required ServiceRegistry registry,
-    required ApplicationLaunchContext context,
-  })  : _registry = registry,
-        _context = context;
+    required this._registry,
+    required this._context,
+  });
 
   @override
   ApplicationId get applicationId => _context.applicationId;

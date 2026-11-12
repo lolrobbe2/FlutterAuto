@@ -20,10 +20,9 @@ class FlutterApplicationInstance implements ApplicationInstance {
 
   FlutterApplicationInstance({
     required this.id,
-    required HeadunitApplication application,
-    required HeadunitApplicationContext context,
-  }) : _application = application,
-       _context = context;
+    required this._application,
+    required this._context,
+  });
 
   @override
   ApplicationLifecycleState get state => _state;
