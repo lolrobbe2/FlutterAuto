@@ -23,4 +23,9 @@ export 'src/services/service_broker.dart';
 
 export 'src/capabilities/capability_id.dart';
 
+export 'src/errors/application_error.dart';
+export 'src/errors/application_error_reporter.dart';
+export 'src/errors/application_error_severity.dart';
+export 'src/errors/application_error_source.dart';
+
 // TODO: Export any libraries intended for clients of this package.
