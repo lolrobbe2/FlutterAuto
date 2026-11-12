@@ -5,14 +5,18 @@ import 'headunit_runtime_state.dart';
 import 'services/service_registry.dart';
 import 'application/application_manager.dart';
 import 'errors/application_error_reporter_impl.dart';
+import 'errors/flutter_framework_error_handler.dart';
 
 class HeadunitRuntime {
   final AudioService _audioService;
   final ApplicationErrorReporterImpl _errorReporter =
       ApplicationErrorReporterImpl();
+  late final FlutterFrameworkErrorHandler _flutterErrorHandler =
+      FlutterFrameworkErrorHandler(errorReporter: _errorReporter);
   final ServiceRegistry _serviceRegistry = ServiceRegistry();
   late final ApplicationManager _applicationManager = ApplicationManager(
     serviceRegistry: _serviceRegistry,
+    errorReporter: _errorReporter,
   );
 
   HeadunitRuntimeState _state = HeadunitRuntimeState.created;
@@ -89,6 +93,8 @@ class HeadunitRuntime {
         instance: _audioService,
         requiredCapabilities: [CapabilityId('audio.sessions.manage')],
       );
+
+      _flutterErrorHandler.install();
 
       _state = HeadunitRuntimeState.running;
     } catch (error, stackTrace) {
@@ -177,6 +183,8 @@ class HeadunitRuntime {
     _serviceRegistry.dispose();
 
     try {
+      _flutterErrorHandler.dispose();
+
       await _errorReporter.dispose();
     } catch (error, stackTrace) {
       firstError ??= error;

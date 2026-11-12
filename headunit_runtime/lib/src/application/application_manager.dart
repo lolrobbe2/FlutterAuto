@@ -19,6 +19,7 @@ class ApplicationManager {
 
   final StreamController<ApplicationManagerEvent> _events =
       StreamController<ApplicationManagerEvent>.broadcast();
+  final ApplicationErrorReporter _errorReporter;
 
   ApplicationId? _foregroundApplicationId;
   bool _disposing = false;
@@ -26,7 +27,11 @@ class ApplicationManager {
   Future<void>? _disposalFuture;
   Future<void> _transitionQueue = Future<void>.value();
 
-  ApplicationManager({required this._serviceRegistry});
+  ApplicationManager({
+    required ServiceRegistry serviceRegistry,
+    required ApplicationErrorReporter errorReporter,
+  }) : _serviceRegistry = serviceRegistry,
+       _errorReporter = errorReporter;
 
   ApplicationId? get foregroundApplicationId => _foregroundApplicationId;
 
@@ -133,6 +138,27 @@ class ApplicationManager {
     });
   }
 
+  void _reportError({
+    required ApplicationId applicationId,
+    required ApplicationErrorSource source,
+    required String message,
+    required Object error,
+    required StackTrace stackTrace,
+    ApplicationErrorSeverity severity = ApplicationErrorSeverity.error,
+  }) {
+    _errorReporter.report(
+      ApplicationError(
+        applicationId: applicationId,
+        source: source,
+        severity: severity,
+        message: message,
+        error: error,
+        stackTrace: stackTrace,
+        timestamp: DateTime.now(),
+      ),
+    );
+  }
+
   Future<ApplicationInstance> _launchInternal(ApplicationId id) async {
     ApplicationInstance? instance = _instances[id];
 
@@ -148,8 +174,21 @@ class ApplicationManager {
         case ApplicationLifecycleState.suspended:
           try {
             await instance.resume();
-            await setForeground(id);
+          } catch (error, stackTrace) {
+            _reportError(
+              applicationId: id,
+              source: ApplicationErrorSource.lifecycle,
+              message: 'Application $id failed to resume.',
+              error: error,
+              stackTrace: stackTrace,
+            );
 
+            await _cleanupFailedInstance(id, instance);
+            rethrow;
+          }
+
+          try {
+            await setForeground(id);
             return instance;
           } catch (_) {
             await _cleanupFailedInstance(id, instance);
@@ -189,17 +228,41 @@ class ApplicationManager {
 
     final ServiceBroker serviceBroker = _serviceRegistry.createBroker(context);
 
-    final ApplicationInstance newInstance = await runtime.createInstance(
-      manifest: manifest,
-      context: context,
-      serviceBroker: serviceBroker,
-    );
+    late final ApplicationInstance newInstance;
+
+    try {
+      newInstance = await runtime.createInstance(
+        manifest: manifest,
+        context: context,
+        serviceBroker: serviceBroker,
+      );
+    } catch (error, stackTrace) {
+      _reportError(
+        applicationId: id,
+        source: ApplicationErrorSource.startup,
+        message: 'Runtime failed to create application $id.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+
+      rethrow;
+    }
 
     if (newInstance.id != id) {
-      throw StateError(
+      final StateError error = StateError(
         'Runtime created an instance with ID ${newInstance.id}, '
         'but $id was requested.',
       );
+
+      _reportError(
+        applicationId: id,
+        source: ApplicationErrorSource.startup,
+        message: 'Runtime created an application with an unexpected ID.',
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+
+      throw error;
     }
 
     _instances[id] = newInstance;
@@ -210,11 +273,34 @@ class ApplicationManager {
     );
 
     try {
-      await newInstance.start();
+      try {
+        await newInstance.start();
+      } catch (error, stackTrace) {
+        _reportError(
+          applicationId: id,
+          source: ApplicationErrorSource.startup,
+          message: 'Application $id failed to start.',
+          error: error,
+          stackTrace: stackTrace,
+        );
+
+        rethrow;
+      }
+
       if (newInstance.state != ApplicationLifecycleState.background) {
-        throw StateError(
+        final StateError error = StateError(
           'Application $id must enter the background state after startup.',
         );
+
+        _reportError(
+          applicationId: id,
+          source: ApplicationErrorSource.startup,
+          message: 'Application $id entered an unexpected state after startup.',
+          error: error,
+          stackTrace: StackTrace.current,
+        );
+
+        throw error;
       }
 
       await setForeground(id);
@@ -229,8 +315,15 @@ class ApplicationManager {
 
       try {
         await newInstance.stop();
-      } catch (_) {
-        // Preserve the original startup error.
+      } catch (error, stackTrace) {
+        _reportError(
+          applicationId: id,
+          source: ApplicationErrorSource.lifecycle,
+          severity: ApplicationErrorSeverity.warning,
+          message: 'Failed to stop application $id during startup cleanup.',
+          error: error,
+          stackTrace: stackTrace,
+        );
       }
 
       rethrow;
@@ -251,8 +344,15 @@ class ApplicationManager {
   ) async {
     try {
       await instance.stop();
-    } catch (_) {
-      // Continue removing the failed application.
+    } catch (error, stackTrace) {
+      _reportError(
+        applicationId: id,
+        source: ApplicationErrorSource.lifecycle,
+        severity: ApplicationErrorSeverity.warning,
+        message: 'Failed to stop application $id during cleanup.',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
 
     if (identical(_instances[id], instance)) {
@@ -293,7 +393,15 @@ class ApplicationManager {
     if (target.state == ApplicationLifecycleState.suspended) {
       try {
         await target.resume();
-      } catch (_) {
+      } catch (error, stackTrace) {
+        _reportError(
+          applicationId: id,
+          source: ApplicationErrorSource.lifecycle,
+          message: 'Application $id failed to resume before foregrounding.',
+          error: error,
+          stackTrace: stackTrace,
+        );
+
         await _cleanupFailedInstance(id, target);
         rethrow;
       }
@@ -325,13 +433,19 @@ class ApplicationManager {
         applicationId: id,
         previousForegroundApplicationId: previousId,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _reportError(
+        applicationId: id,
+        source: ApplicationErrorSource.lifecycle,
+        message: 'Application $id failed to enter the foreground.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+
       if (target.state == ApplicationLifecycleState.failed) {
         await _cleanupFailedInstance(id, target);
       }
 
-      // Try to restore the previous application if it is still registered
-      // as a running instance.
       if (previous != null &&
           identical(_instances[previousId], previous) &&
           previous.state != ApplicationLifecycleState.failed) {
@@ -342,7 +456,6 @@ class ApplicationManager {
 
           if (previous.state == ApplicationLifecycleState.background) {
             await previous.setForeground();
-
             _foregroundApplicationId = previousId;
 
             _emitEvent(
@@ -351,8 +464,17 @@ class ApplicationManager {
               previousForegroundApplicationId: id,
             );
           }
-        } catch (_) {
-          await _cleanupFailedInstance(previousId!, previous);
+        } catch (restoreError, restoreStackTrace) {
+          _reportError(
+            applicationId: previousId!,
+            source: ApplicationErrorSource.lifecycle,
+            severity: ApplicationErrorSeverity.warning,
+            message: 'Failed to restore the previous foreground application.',
+            error: restoreError,
+            stackTrace: restoreStackTrace,
+          );
+
+          await _cleanupFailedInstance(previousId, previous);
         }
       }
 
@@ -375,7 +497,15 @@ class ApplicationManager {
 
     try {
       await instance.setBackground();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _reportError(
+        applicationId: id,
+        source: ApplicationErrorSource.lifecycle,
+        message: 'Application $id failed to enter the background.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+
       if (instance.state == ApplicationLifecycleState.failed) {
         await _cleanupFailedInstance(id, instance);
       }
@@ -407,7 +537,15 @@ class ApplicationManager {
             ApplicationManagerEventType.applicationsChanged,
             applicationId: id,
           );
-        } catch (_) {
+        } catch (error, stackTrace) {
+          _reportError(
+            applicationId: id,
+            source: ApplicationErrorSource.lifecycle,
+            message: 'Application $id failed to suspend.',
+            error: error,
+            stackTrace: stackTrace,
+          );
+
           await _cleanupFailedInstance(id, instance);
           rethrow;
         }
@@ -430,6 +568,16 @@ class ApplicationManager {
 
     try {
       await instance.stop();
+    } catch (error, stackTrace) {
+      _reportError(
+        applicationId: id,
+        source: ApplicationErrorSource.lifecycle,
+        message: 'Application $id failed to stop.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+
+      rethrow;
     } finally {
       _instances.remove(id);
 
@@ -504,6 +652,14 @@ class ApplicationManager {
           await instance.stop();
         }
       } catch (error, stackTrace) {
+        _reportError(
+          applicationId: id,
+          source: ApplicationErrorSource.lifecycle,
+          message: 'Application $id failed to stop during manager disposal.',
+          error: error,
+          stackTrace: stackTrace,
+        );
+
         firstError ??= error;
         firstStackTrace ??= stackTrace;
       } finally {

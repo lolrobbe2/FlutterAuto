@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:headunit_contracts/headunit_contracts.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
 import 'package:headunit_runtime/src/services/service_registry.dart';
+import 'package:headunit_runtime/src/errors/application_error_reporter_impl.dart';
 
 import '../support/test_fixtures.dart';
 
@@ -12,11 +13,16 @@ void main() {
     late ServiceRegistry serviceRegistry;
     late ApplicationManager manager;
     late FakeApplicationRuntime applicationRuntime;
+    late ApplicationErrorReporterImpl errorReporter;
 
     setUp(() {
       serviceRegistry = ServiceRegistry();
+      errorReporter = ApplicationErrorReporterImpl();
 
-      manager = ApplicationManager(serviceRegistry: serviceRegistry);
+      manager = ApplicationManager(
+        serviceRegistry: serviceRegistry,
+        errorReporter: errorReporter,
+      );
 
       applicationRuntime = FakeApplicationRuntime();
 
@@ -25,6 +31,7 @@ void main() {
 
     tearDown(() async {
       await manager.dispose();
+      await errorReporter.dispose();
       serviceRegistry.dispose();
     });
 
@@ -269,9 +276,11 @@ void main() {
     test('cleans up an application when startup fails', () async {
       registerApplication();
 
-      applicationRuntime.startError = StateError(
+      final StateError startupError = StateError(
         'Simulated application startup failure.',
       );
+
+      applicationRuntime.startError = startupError;
 
       await expectLater(
         manager.launch(createTestApplicationId()),
@@ -285,6 +294,17 @@ void main() {
       expect(instance.stopCalls, 1);
       expect(manager.getInstance(instance.id), isNull);
       expect(manager.foregroundApplicationId, isNull);
+
+      expect(errorReporter.recentErrors, hasLength(1));
+
+      final ApplicationError reportedError = errorReporter.recentErrors.single;
+
+      expect(reportedError.applicationId, createTestApplicationId());
+      expect(reportedError.source, ApplicationErrorSource.startup);
+      expect(reportedError.severity, ApplicationErrorSeverity.error);
+      expect(reportedError.error, same(startupError));
+      expect(reportedError.stackTrace, isNotNull);
+      expect(reportedError.message, isNotEmpty);
     });
 
     test(
@@ -292,9 +312,11 @@ void main() {
       () async {
         registerApplication();
 
-        applicationRuntime.createError = StateError(
+        final StateError creationError = StateError(
           'Simulated runtime creation failure.',
         );
+
+        applicationRuntime.createError = creationError;
 
         await expectLater(
           manager.launch(createTestApplicationId()),
@@ -302,6 +324,18 @@ void main() {
         );
 
         expect(manager.runningApplications, isEmpty);
+
+        expect(errorReporter.recentErrors, hasLength(1));
+
+        final ApplicationError reportedError =
+            errorReporter.recentErrors.single;
+
+        expect(reportedError.applicationId, createTestApplicationId());
+        expect(reportedError.source, ApplicationErrorSource.startup);
+        expect(reportedError.severity, ApplicationErrorSeverity.error);
+        expect(reportedError.error, same(creationError));
+        expect(reportedError.stackTrace, isNotNull);
+        expect(reportedError.message, isNotEmpty);
       },
     );
 
@@ -550,6 +584,14 @@ void main() {
 
       expect(instance.state, ApplicationLifecycleState.stopped);
       expect(manager.getInstance(ApplicationId(firstId)), isNull);
+    });
+    test('does not report an unregistered application launch', () async {
+      await expectLater(
+        manager.launch(createTestApplicationId()),
+        throwsStateError,
+      );
+
+      expect(errorReporter.recentErrors, isEmpty);
     });
   });
 }
