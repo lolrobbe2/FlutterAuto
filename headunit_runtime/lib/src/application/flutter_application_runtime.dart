@@ -3,7 +3,13 @@ import 'package:headunit_sdk/headunit_sdk.dart';
 
 import 'flutter_application_instance.dart';
 
+import 'package:flutter/foundation.dart';
+
 class FlutterApplicationRuntime implements ApplicationRuntime {
+  static const Set<TargetPlatform> _supportedPlatforms = {
+    TargetPlatform.android,
+    TargetPlatform.windows,
+  };
   final Map<ApplicationId, HeadunitApplicationFactory> _factories = {};
 
   bool _disposed = false;
@@ -42,6 +48,8 @@ class FlutterApplicationRuntime implements ApplicationRuntime {
   }) async {
     _ensureActive();
 
+    _ensureSupportedPlatform();
+
     if (manifest.runtime != kind) {
       throw ArgumentError(
         'FlutterApplicationRuntime cannot execute '
@@ -56,8 +64,7 @@ class FlutterApplicationRuntime implements ApplicationRuntime {
       );
     }
 
-    final HeadunitApplicationFactory? factory =
-        _factories[manifest.id];
+    final HeadunitApplicationFactory? factory = _factories[manifest.id];
 
     if (factory == null) {
       throw StateError(
@@ -69,11 +76,11 @@ class FlutterApplicationRuntime implements ApplicationRuntime {
 
     final HeadunitApplicationContext applicationContext =
         HeadunitApplicationContext(
-      applicationId: manifest.id,
-      services: serviceBroker,
-      locale: context.locale,
-      productId: context.productId,
-    );
+          applicationId: manifest.id,
+          services: serviceBroker,
+          locale: context.locale,
+          productId: context.productId,
+        );
 
     return FlutterApplicationInstance(
       id: manifest.id,
@@ -85,6 +92,19 @@ class FlutterApplicationRuntime implements ApplicationRuntime {
   void dispose() {
     _factories.clear();
     _disposed = true;
+  }
+
+  void _ensureSupportedPlatform() {
+    final TargetPlatform platform = defaultTargetPlatform;
+
+    if (kIsWeb || !_supportedPlatforms.contains(platform)) {
+      final String platformName = kIsWeb ? 'web' : platform.name;
+
+      throw UnsupportedError(
+        'FlutterApplicationRuntime does not support $platformName. '
+        'Supported platforms are native Android and Windows.',
+      );
+    }
   }
 
   void _ensureActive() {

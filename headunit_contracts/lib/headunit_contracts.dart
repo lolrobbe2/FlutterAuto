@@ -37,4 +37,6 @@ export 'src/product/product_application.dart';
 export 'src/product/product_module.dart';
 export 'src/product/product_manifest.dart';
 
+export 'src/application/flutter_application_target.dart';
+export 'src/application/flutter_application_package_manifest.dart';
 // TODO: Export any libraries intended for clients of this package.

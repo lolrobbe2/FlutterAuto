@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:headunit_contracts/headunit_contracts.dart';
@@ -290,6 +291,38 @@ void main() {
       );
 
       expect(find.text('Hello from ${applicationId.value}'), findsOneWidget);
+    });
+    test('supports Windows platform', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+      });
+
+      final ApplicationInstance instance = await runtime.createInstance(
+        manifest: manifest,
+        context: launchContext,
+        serviceBroker: broker,
+      );
+
+      expect(instance, isA<FlutterApplicationInstance>());
+    });
+
+    test('rejects unsupported Linux platform', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+      });
+
+      await expectLater(
+        runtime.createInstance(
+          manifest: manifest,
+          context: launchContext,
+          serviceBroker: broker,
+        ),
+        throwsA(isA<UnsupportedError>()),
+      );
     });
   });
 }
