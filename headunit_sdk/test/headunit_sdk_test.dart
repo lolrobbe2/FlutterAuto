@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 ApplicationManifest createApplicationManifest({
   ApplicationRuntimeKind runtime = ApplicationRuntimeKind.flutter,

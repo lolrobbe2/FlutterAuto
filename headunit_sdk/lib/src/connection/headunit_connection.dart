@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:headunit_contracts/headunit_contracts.dart';
-import 'package:headunit_ipc/headunit_ipc.dart';
-import 'package:headunit_media/headunit_media.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 /// Authenticated connection from an external application to its headunit.
 ///
@@ -24,19 +22,15 @@ class HeadunitConnection {
   late final HeadunitServiceClient services = HeadunitServiceClient(_rpc);
 
   HeadunitConnection._({
-    required RpcConnection rpc,
+    required this._rpc,
     required this.applicationId,
     required List<CapabilityId> grantedCapabilities,
     required this.locale,
     required this.productId,
-    required int? mediaPort,
-    required String host,
-    required String token,
-  }) : _rpc = rpc,
-       _mediaPort = mediaPort,
-       _host = host,
-       _token = token,
-       grantedCapabilities = List<CapabilityId>.unmodifiable(
+    required this._mediaPort,
+    required this._host,
+    required this._token,
+  }) : grantedCapabilities = List<CapabilityId>.unmodifiable(
          grantedCapabilities,
        );
 
@@ -376,13 +370,11 @@ class RemoteServiceHandle {
   bool _eventsSubscribed = false;
 
   RemoteServiceHandle._({
-    required HeadunitServiceClient client,
-    required RpcConnection rpc,
+    required this._client,
+    required this._rpc,
     required this.serviceId,
     required Set<String> methods,
-  }) : _client = client,
-       _rpc = rpc,
-       methods = Set<String>.unmodifiable(methods);
+  }) : methods = Set<String>.unmodifiable(methods);
 
   Stream<RemoteServiceEvent> get events => _client.events.where(
     (RemoteServiceEvent event) => event.serviceId == serviceId,

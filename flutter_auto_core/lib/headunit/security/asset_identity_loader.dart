@@ -5,8 +5,8 @@ typedef PemProvider = Future<String> Function();
 class AssetIdentityLoader {
   const AssetIdentityLoader({
     required this._certificateProvider,
-    required PemProvider privateKeyProvider,
-  })  : _privateKeyProvider = privateKeyProvider;
+    required this._privateKeyProvider,
+  });
 
   final PemProvider _certificateProvider;
   final PemProvider _privateKeyProvider;

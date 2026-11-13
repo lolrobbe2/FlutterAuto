@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 import 'flutter_application_package_reader.dart';
 

@@ -1,8 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
-import 'package:headunit_media/headunit_media.dart';
 import 'package:headunit_runtime/src/application/remote_application_rpc_session.dart';
 import 'package:headunit_runtime/src/services/service_registry.dart';
 import 'package:headunit_sdk/headunit_sdk.dart';

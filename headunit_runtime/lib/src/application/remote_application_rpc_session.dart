@@ -2,12 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:headunit_contracts/headunit_contracts.dart';
-import 'package:headunit_ipc/headunit_ipc.dart';
-import 'package:headunit_media/headunit_media.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 import '../services/remote_service_adapter.dart';
-import '../services/service_registry.dart';
 
 /// Connection details a platform launcher passes to the external application.
 /// The token is single-session and must be delivered through the platform's
@@ -47,16 +44,12 @@ class RemoteApplicationRpcSession {
   bool _disposed = false;
 
   RemoteApplicationRpcSession._({
-    required ApplicationLaunchContext context,
-    required RemoteServiceBroker serviceBroker,
-    required LocalRpcServer server,
-    required LocalMediaServer mediaServer,
-    required String token,
-  }) : _context = context,
-       _serviceBroker = serviceBroker,
-       _server = server,
-       _mediaServer = mediaServer,
-       _token = token {
+    required this._context,
+    required this._serviceBroker,
+    required this._server,
+    required this._mediaServer,
+    required this._token,
+  }) {
     _connectionSubscription = _server.connections.listen(_attachConnection);
   }
 
@@ -239,7 +232,7 @@ class RemoteApplicationRpcSession {
     if (rawMethod is! String || rawMethod.isEmpty || rawMethod.length > 128) {
       throw const RpcException(-32602, 'Invalid service method.');
     }
-    final Object? rawArguments = parameters['arguments'] ??
+    final Object rawArguments = parameters['arguments'] ??
         const <String, Object?>{};
     if (rawArguments is! Map) {
       throw const RpcException(-32602, 'Service arguments must be an object.');

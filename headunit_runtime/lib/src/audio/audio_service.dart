@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_soloud/flutter_soloud.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 import 'package:logging/logging.dart';
 
 part 'audio_session.dart';

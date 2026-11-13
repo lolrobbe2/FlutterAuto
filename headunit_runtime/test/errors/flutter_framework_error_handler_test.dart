@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 import 'package:headunit_runtime/src/errors/application_error_reporter_impl.dart';
 import 'package:headunit_runtime/src/errors/flutter_framework_error_handler.dart';
 
@@ -81,8 +81,7 @@ void main() {
     });
 
     test('restores the previous handler when disposed', () {
-      final FlutterExceptionHandler previousHandler =
-          (FlutterErrorDetails details) {};
+      void previousHandler(FlutterErrorDetails details) {}
 
       FlutterError.onError = previousHandler;
 
@@ -95,8 +94,7 @@ void main() {
     test('does not overwrite a handler installed afterwards', () {
       handler.install();
 
-      final FlutterExceptionHandler replacementHandler =
-          (FlutterErrorDetails details) {};
+      void replacementHandler(FlutterErrorDetails details) {}
 
       FlutterError.onError = replacementHandler;
 
