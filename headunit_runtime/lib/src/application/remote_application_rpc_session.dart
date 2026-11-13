@@ -165,10 +165,7 @@ class RemoteApplicationRpcSession {
       'service.unsubscribe',
       _unsubscribeService,
     );
-    uiChannel.attach(
-      connection,
-      isAuthenticated: () => _authenticated,
-    );
+    uiChannel.attach(connection, isAuthenticated: () => _authenticated);
   }
 
   Future<Object?> _authenticate(Map<String, Object?> parameters) async {
