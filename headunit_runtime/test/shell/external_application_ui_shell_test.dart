@@ -2,12 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
-import 'package:headunit_runtime/src/application/application_process_launcher.dart';
-import 'package:headunit_runtime/src/application/external_flutter_application_instance.dart';
-import 'package:headunit_runtime/src/application/flutter_application_package_installer.dart';
 import 'package:headunit_sdk/headunit_sdk.dart';
 
 import '../support/test_fixtures.dart';
@@ -16,13 +13,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('External application shell UI', () {
-    late TargetPlatform? previousPlatform;
     late HeadunitRuntime runtime;
     late _FakeExternalProcessLauncher processLauncher;
     late ApplicationId applicationId;
 
     setUp(() async {
-      previousPlatform = debugDefaultTargetPlatformOverride;
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
 
       runtime = HeadunitRuntime(audioService: FakeAudioService());
@@ -73,8 +68,11 @@ void main() {
     });
 
     tearDown(() async {
-      await runtime.dispose();
-      debugDefaultTargetPlatformOverride = previousPlatform;
+      try {
+        await runtime.dispose();
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
 
     testWidgets(
@@ -128,10 +126,29 @@ void main() {
 
         expect(find.text('External page'), findsOneWidget);
         expect(find.text('Rendered by the headunit'), findsOneWidget);
+        // Observe the notification arriving at the child process.
+        final Future<HeadunitHostEvent> receivedAction = processLauncher
+            .connection!
+            .notifications
+            .firstWhere(
+              (HeadunitHostEvent event) => event.method == 'ui.action',
+            )
+            .timeout(const Duration(seconds: 8));
+
         await tester.tap(find.text('Run action'));
+
+        final HeadunitHostEvent? actionEvent = await tester.runAsync(
+          () => receivedAction,
+        );
+
+        expect(actionEvent, isNotNull);
+        expect(actionEvent!.parameters['actionId'], 'shell.run');
+
+        // Now verify that the SDK invokes the application-local callback.
         await tester.runAsync(
           () => invoked.future.timeout(const Duration(seconds: 8)),
         );
+
         expect(invoked.isCompleted, isTrue);
 
         // Stop the child while runAsync is active. Its graceful-shutdown path

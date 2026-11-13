@@ -14,6 +14,7 @@ import 'remote_application_rpc_session.dart';
 /// media connection, and process-exit monitor. It deliberately does not own
 /// the RemoteVideoSurface widget; the shell owns that presentation.
 class ExternalFlutterApplicationInstance implements ApplicationInstance {
+  @override
   final ApplicationId id;
   final ApplicationLaunchContext _context;
   final RemoteServiceBroker _serviceBroker;
@@ -48,20 +49,15 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
     required ApplicationLaunchContext context,
     required RemoteServiceBroker serviceBroker,
     required InstalledFlutterApplication installedApplication,
-    required ApplicationProcessLauncher processLauncher,
-    VideoStreamConfiguration mediaConfiguration =
+    required this._processLauncher,
+    this._mediaConfiguration =
         VideoStreamConfiguration.defaultConfiguration,
-    Duration startupTimeout = const Duration(seconds: 10),
-    Duration gracefulShutdownTimeout = const Duration(seconds: 2),
-    Duration killTimeout = const Duration(seconds: 2),
+    this._startupTimeout = const Duration(seconds: 10),
+    this._gracefulShutdownTimeout = const Duration(seconds: 2),
+    this._killTimeout = const Duration(seconds: 2),
   }) : _context = context,
        _serviceBroker = serviceBroker,
-       _installedApplication = installedApplication,
-       _processLauncher = processLauncher,
-       _mediaConfiguration = mediaConfiguration,
-       _startupTimeout = startupTimeout,
-       _gracefulShutdownTimeout = gracefulShutdownTimeout,
-       _killTimeout = killTimeout {
+       _installedApplication = installedApplication {
     if (context.applicationId != id || serviceBroker.applicationId != id) {
       throw ArgumentError(
         'External application context and service broker must match $id.',

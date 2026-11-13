@@ -3,8 +3,6 @@ import 'dart:io';
 
 import 'package:headunit_runtime/headunit_runtime.dart';
 
-import 'flutter_application_package_installer.dart';
-import 'remote_application_rpc_session.dart';
 
 /// Minimal process contract so runtime lifecycle code can be tested without
 /// starting a real Windows executable.

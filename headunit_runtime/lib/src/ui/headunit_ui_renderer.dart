@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:headunit_shared/headunit_shared_io.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'headunit_ui_theme.dart';
@@ -91,7 +91,7 @@ class HeadunitUiRenderer extends StatelessWidget {
     }
 
     if (component is HeadunitUiButton) {
-      final VoidCallback callback = () => onAction(component.action.id);
+      void callback() => onAction(component.action.id);
       final Widget content = Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[

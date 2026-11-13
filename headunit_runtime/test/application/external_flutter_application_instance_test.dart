@@ -3,8 +3,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
-import 'package:headunit_runtime/src/application/application_process_launcher.dart';
-import 'package:headunit_runtime/src/application/external_flutter_application_instance.dart';
 import 'package:headunit_runtime/src/services/service_registry.dart';
 import 'package:headunit_sdk/headunit_sdk.dart';
 

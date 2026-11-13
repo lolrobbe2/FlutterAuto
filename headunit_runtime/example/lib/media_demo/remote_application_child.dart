@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:headunit_sdk/headunit_sdk.dart';
@@ -148,10 +147,9 @@ class _RemoteH264Sender {
   Future<void>? _sendTask;
 
   _RemoteH264Sender({
-    required MediaStreamClient client,
-    required List<H264AccessUnit> accessUnits,
-  }) : _client = client,
-       _accessUnits = accessUnits;
+    required this._client,
+    required this._accessUnits,
+  });
 
   void start() {
     if (_running) {

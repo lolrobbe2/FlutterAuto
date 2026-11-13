@@ -19,12 +19,10 @@ import 'video_decoder.dart';
 /// implement or maintain platform-native decoder code.
 class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
   FfmpegVideoDecoder._({
-    required FFplaySurface surface,
-    required ServerSocket server,
-    required VideoStreamConfiguration configuration,
-  }) : _surface = surface,
-       _server = server,
-       _configuration = configuration;
+    required this._surface,
+    required ServerSocket this._server,
+    required this._configuration,
+  });
 
   static const Duration _connectTimeout = Duration(seconds: 10);
   static const Duration _stopTimeout = Duration(seconds: 3);

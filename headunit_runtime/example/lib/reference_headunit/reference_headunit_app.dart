@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
 
 /// A compact host-side reference implementation for a FlutterAuto headunit.

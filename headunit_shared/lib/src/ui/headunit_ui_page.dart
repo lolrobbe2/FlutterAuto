@@ -405,8 +405,9 @@ class HeadunitUiListItem {
     _validateIdentifier(id, 'list item id');
     _validateText(title, 'title', maxLength: 160);
     if (subtitle != null) _validateText(subtitle!, 'subtitle', maxLength: 240);
-    if (trailingText != null)
+    if (trailingText != null) {
       _validateText(trailingText!, 'trailingText', maxLength: 80);
+    }
     if (iconCodePoint != null &&
         (iconCodePoint! < 0 || iconCodePoint! > 0x10ffff)) {
       throw ArgumentError.value(iconCodePoint, 'iconCodePoint');
@@ -586,12 +587,14 @@ HeadunitUiAction? _readOptionalAction(Map<String, Object?> json, String key) {
 }
 
 Map<String, Object?> _readMap(Object? value, String description) {
-  if (value is! Map)
+  if (value is! Map) {
     throw FormatException('Expected $description to be an object.');
+  }
   final Map<String, Object?> result = <String, Object?>{};
   for (final MapEntry<Object?, Object?> entry in value.entries) {
-    if (entry.key is! String)
+    if (entry.key is! String) {
       throw const FormatException('Object keys must be strings.');
+    }
     result[entry.key as String] = entry.value;
   }
   return result;
@@ -599,15 +602,17 @@ Map<String, Object?> _readMap(Object? value, String description) {
 
 String _readString(Map<String, Object?> json, String key) {
   final Object? value = json[key];
-  if (value is! String || value.isEmpty)
+  if (value is! String || value.isEmpty) {
     throw FormatException('Field "$key" must be a non-empty string.');
+  }
   return value;
 }
 
 String? _readOptionalString(Map<String, Object?> json, String key) {
   final Object? value = json[key];
-  if (value != null && value is! String)
+  if (value != null && value is! String) {
     throw FormatException('Field "$key" must be a string.');
+  }
   return value as String?;
 }
 
@@ -619,15 +624,17 @@ bool _readBool(Map<String, Object?> json, String key) {
 
 num _readNumber(Map<String, Object?> json, String key) {
   final Object? value = json[key];
-  if (value is! num || !value.isFinite)
+  if (value is! num || !value.isFinite) {
     throw FormatException('Field "$key" must be a finite number.');
+  }
   return value;
 }
 
 num? _readOptionalNumber(Map<String, Object?> json, String key) {
   final Object? value = json[key];
-  if (value != null && (value is! num || !value.isFinite))
+  if (value != null && (value is! num || !value.isFinite)) {
     throw FormatException('Field "$key" must be a finite number.');
+  }
   return value as num?;
 }
 
@@ -639,8 +646,9 @@ int? _readOptionalInt(
 }) {
   final Object? value = json[key];
   if (value == null) return null;
-  if (value is! int || value < min || value > max)
+  if (value is! int || value < min || value > max) {
     throw FormatException('Field "$key" is outside its allowed range.');
+  }
   return value;
 }
 
@@ -684,8 +692,9 @@ void _validateText(String value, String name, {required int maxLength}) {
 }
 
 void _validateImageUrl(String value) {
-  if (value.length > 2048)
+  if (value.length > 2048) {
     throw ArgumentError.value(value, 'url', 'URL is too long.');
+  }
   final Uri? uri = Uri.tryParse(value);
   if (uri == null ||
       (uri.scheme != 'https' && uri.scheme != 'http') ||
