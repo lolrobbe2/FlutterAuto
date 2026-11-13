@@ -50,8 +50,7 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
     required RemoteServiceBroker serviceBroker,
     required InstalledFlutterApplication installedApplication,
     required this._processLauncher,
-    this._mediaConfiguration =
-        VideoStreamConfiguration.defaultConfiguration,
+    this._mediaConfiguration = VideoStreamConfiguration.defaultConfiguration,
     this._startupTimeout = const Duration(seconds: 10),
     this._gracefulShutdownTimeout = const Duration(seconds: 2),
     this._killTimeout = const Duration(seconds: 2),

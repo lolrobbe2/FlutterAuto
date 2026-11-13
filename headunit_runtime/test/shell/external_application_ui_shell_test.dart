@@ -18,8 +18,6 @@ void main() {
     late ApplicationId applicationId;
 
     setUp(() async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-
       runtime = HeadunitRuntime(audioService: FakeAudioService());
       await runtime.initialize();
       processLauncher = _FakeExternalProcessLauncher();
@@ -71,7 +69,14 @@ void main() {
       try {
         await runtime.dispose();
       } finally {
+        // Restore the test binding's debugPrint hook and clear all foundation
+        // overrides checked by debugAssertAllFoundationVarsUnset().
+        final TestWidgetsFlutterBinding binding =
+            TestWidgetsFlutterBinding.ensureInitialized();
+        debugPrint = binding.debugPrintOverride;
         debugDefaultTargetPlatformOverride = null;
+        debugDoublePrecision = null;
+        debugBrightnessOverride = null;
       }
     });
 

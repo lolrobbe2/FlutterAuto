@@ -19,8 +19,8 @@ class FlutterApplicationRuntime implements ApplicationRuntime {
   };
 
   final Map<ApplicationId, HeadunitApplicationFactory> _factories = {};
-  final Map<ApplicationId, InstalledFlutterApplication>
-      _installedApplications = {};
+  final Map<ApplicationId, InstalledFlutterApplication> _installedApplications =
+      {};
   final ApplicationProcessLauncher _processLauncher;
 
   /// The host selects the media format. The child must send access units that

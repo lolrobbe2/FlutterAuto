@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:headunit_runtime/headunit_runtime.dart';
 
-
 /// Minimal process contract so runtime lifecycle code can be tested without
 /// starting a real Windows executable.
 abstract interface class ApplicationProcessHandle {
@@ -31,8 +30,7 @@ abstract interface class ApplicationProcessLauncher {
 /// The one-time session endpoint is written to the child's private stdin pipe,
 /// rather than its command line or inherited environment. The child reads one
 /// JSON line before calling HeadunitConnection.connect().
-class WindowsApplicationProcessLauncher
-    implements ApplicationProcessLauncher {
+class WindowsApplicationProcessLauncher implements ApplicationProcessLauncher {
   static const String childModeArgument = '--headunit-external-app';
 
   @override

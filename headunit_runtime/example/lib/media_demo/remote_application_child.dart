@@ -146,10 +146,7 @@ class _RemoteH264Sender {
   bool _running = false;
   Future<void>? _sendTask;
 
-  _RemoteH264Sender({
-    required this._client,
-    required this._accessUnits,
-  });
+  _RemoteH264Sender({required this._client, required this._accessUnits});
 
   void start() {
     if (_running) {
