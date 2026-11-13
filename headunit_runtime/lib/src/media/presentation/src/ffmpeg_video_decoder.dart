@@ -160,6 +160,7 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
       final FFplaySession session = await FFplayKit.executeAsync(
         arguments.join(' '),
         onComplete: playbackState.complete,
+        onLog: (log) => playbackState.addLog(log.message),
       );
       _session = session;
 
@@ -229,29 +230,25 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
     final List<String> arguments = <String>[
       '-hide_banner',
       '-loglevel',
-      'error',
+      'info',
       '-fflags',
       'nobuffer',
       '-flags',
       'low_delay',
-      // FFplay's switch enables its hardware-accelerated video path and
-      // Vulkan renderer. This is distinct from ffmpeg's `-hwaccel <backend>`
-      // option; FFplay accepts this as a flag without a backend argument.
-      '-hwaccel',
+
+      // Do not enable -hwaccel here.
+      // FFplay automatically switches to Vulkan when this option is enabled.
+      // Windows FFplayDesktopTexture uses the SDL2 rendering path.
       '-f',
       demuxer,
-      '-r',
-      configuration.framesPerSecond.toString(),
       '-i',
       inputUri.toString(),
       '-an',
       '-sn',
-      '-dn',
       '-sync',
       'video',
       '-framedrop',
     ];
-
     final String? rotationFilter = switch (configuration.rotationDegrees) {
       0 => null,
       90 => 'transpose=clock',
@@ -388,21 +385,53 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
 
 class _PlaybackState {
   final Completer<void> completed = Completer<void>();
+  final List<String> _recentLogs = <String>[];
+
   bool ended = false;
   String? failure;
+
+  void addLog(String message) {
+    _recentLogs.add(message);
+
+    // Keep diagnostics bounded for embedded devices.
+    if (_recentLogs.length > 64) {
+      _recentLogs.removeAt(0);
+    }
+  }
 
   void complete(FFplaySession session) {
     if (ended) {
       return;
     }
+
     ended = true;
+
     final int returnCode = session.getReturnCode();
+
     if (!ReturnCode.isSuccess(returnCode)) {
-      final String? failStackTrace = session.getFailStackTrace();
-      failure = failStackTrace == null || failStackTrace.isEmpty
-          ? 'FFplay exited with return code $returnCode.'
-          : failStackTrace;
+      final List<String> diagnostics = <String>[];
+
+      final String? stackTrace = session.getFailStackTrace();
+      if (stackTrace != null && stackTrace.isNotEmpty) {
+        diagnostics.add(stackTrace);
+      }
+
+      final String? logs = session.getLogsAsString();
+      if (logs != null && logs.isNotEmpty) {
+        diagnostics.add(logs);
+      }
+
+      if (_recentLogs.isNotEmpty) {
+        diagnostics.add('Recent FFplay logs:\n${_recentLogs.join('\n')}');
+      }
+
+      failure = diagnostics.isEmpty
+          ? 'FFplay exited with return code $returnCode. '
+                'Command: ${session.getCommand()}'
+          : 'FFplay exited with return code $returnCode.\n'
+                '${diagnostics.join('\n')}';
     }
+
     if (!completed.isCompleted) {
       completed.complete();
     }
