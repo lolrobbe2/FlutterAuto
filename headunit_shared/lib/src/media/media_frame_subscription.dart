@@ -13,10 +13,9 @@ class MediaFrameSubscription {
   bool _cancelled = false;
 
   MediaFrameSubscription._({
-    required VideoFrameQueue queue,
-    required void Function(MediaFrameSubscription subscription) onCancel,
-  }) : _queue = queue,
-       _onCancel = onCancel;
+    required this._queue,
+    required this._onCancel,
+  });
 
   bool get isCancelled => _cancelled;
 

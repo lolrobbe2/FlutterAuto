@@ -12,8 +12,8 @@ class FlutterFrameworkErrorHandler {
   late final FlutterExceptionHandler _installedHandler = _handleError;
 
   FlutterFrameworkErrorHandler({
-    required ApplicationErrorReporter errorReporter,
-  }) : _errorReporter = errorReporter;
+    required this._errorReporter,
+  });
 
   void install() {
     if (_disposed) {

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:headunit_shared/headunit_shared_io.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
 
 const String testApplicationId = 'com.example.test_app';

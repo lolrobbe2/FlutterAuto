@@ -26,14 +26,12 @@ class MediaStreamConnection {
   MediaFrameSubscription? _frameSubscription;
 
   MediaStreamConnection.fromAuthenticatedChannel({
-    required MediaSocketChannel channel,
+    required this._channel,
     required this.configuration,
     required this.maxAccessUnitBytes,
     required int maxQueuedFrames,
-    required void Function(MediaStreamConnection connection) onClosed,
-  }) : _channel = channel,
-       _frameQueue = VideoFrameQueue(capacity: maxQueuedFrames),
-       _onClosed = onClosed {
+    required this._onClosed,
+  }) : _frameQueue = VideoFrameQueue(capacity: maxQueuedFrames) {
     _frameQueue.keyFrameRequests.listen((_) {
       _sendKeyFrameRequest();
     });

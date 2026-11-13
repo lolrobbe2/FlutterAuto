@@ -28,17 +28,13 @@ class LocalMediaServer {
   bool _closed = false;
 
   LocalMediaServer._({
-    required ServerSocket serverSocket,
-    required String token,
+    required this._serverSocket,
+    required this._token,
     required this.configuration,
-    required int maxConnections,
-    required int maxQueuedFrames,
-    required int maxAccessUnitBytes,
-  }) : _serverSocket = serverSocket,
-       _token = token,
-       _maxConnections = maxConnections,
-       _maxQueuedFrames = maxQueuedFrames,
-       _maxAccessUnitBytes = maxAccessUnitBytes {
+    required this._maxConnections,
+    required this._maxQueuedFrames,
+    required this._maxAccessUnitBytes,
+  }) {
     _subscription = _serverSocket.listen(_accept);
   }
 

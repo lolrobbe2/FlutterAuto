@@ -27,10 +27,10 @@ class MediaStreamClient {
   Future<void>? _readLoop;
 
   MediaStreamClient._({
-    required MediaSocketChannel channel,
+    required this._channel,
     required this.maxAccessUnitBytes,
     required this.configuration,
-  }) : _channel = channel {
+  }) {
     _readLoop = _readControlMessages();
   }
 

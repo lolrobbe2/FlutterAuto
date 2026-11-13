@@ -1,6 +1,4 @@
 import 'package:headunit_shared/headunit_shared_io.dart';
-import 'package:headunit_shared/headunit_shared_io.dart'
-    show ApplicationBackgroundPolicy;
 
 class ApplicationRegistration {
   final ApplicationManifest manifest;

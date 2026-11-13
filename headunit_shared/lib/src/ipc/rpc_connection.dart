@@ -38,8 +38,7 @@ class RpcConnection {
   int _activeHandlers = 0;
   bool _closed = false;
 
-  RpcConnection._(this._socket, {required int maxFrameBytes})
-    : _maxFrameBytes = maxFrameBytes {
+  RpcConnection._(this._socket, {required this._maxFrameBytes}) {
     _socket.setOption(SocketOption.tcpNoDelay, true);
     _socketSubscription = _socket.listen(
       _onData,

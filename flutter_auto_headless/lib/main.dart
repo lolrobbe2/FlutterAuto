@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_auto_core/branding/flutter_auto_splash_screen.dart';
 import 'package:flutter_auto_core/flutter_auto_core.dart';
 import 'package:logging/logging.dart';

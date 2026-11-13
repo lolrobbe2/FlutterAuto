@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:headunit_shared/headunit_shared_io.dart';
 
 import '../../headunit_runtime.dart';
 import '../services/service_registry.dart';
@@ -23,16 +22,15 @@ class ApplicationManager {
 
   ApplicationId? _foregroundApplicationId;
   bool _disposing = false;
-  bool _disposed = false;
-  int _transitionSequence = 0;
+  final bool _disposed = false;
+  final int _transitionSequence = 0;
   Future<void>? _disposalFuture;
   Future<void> _transitionQueue = Future<void>.value();
 
   ApplicationManager({
-    required ServiceRegistry serviceRegistry,
-    required ApplicationErrorReporter errorReporter,
-  }) : _serviceRegistry = serviceRegistry,
-       _errorReporter = errorReporter;
+    required this._serviceRegistry,
+    required this._errorReporter,
+  });
 
   ApplicationId? get foregroundApplicationId => _foregroundApplicationId;
 

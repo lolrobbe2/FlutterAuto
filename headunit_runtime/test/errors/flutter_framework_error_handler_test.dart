@@ -81,8 +81,7 @@ void main() {
     });
 
     test('restores the previous handler when disposed', () {
-      final FlutterExceptionHandler previousHandler =
-          (FlutterErrorDetails details) {};
+      void previousHandler(FlutterErrorDetails details) {}
 
       FlutterError.onError = previousHandler;
 
@@ -95,8 +94,7 @@ void main() {
     test('does not overwrite a handler installed afterwards', () {
       handler.install();
 
-      final FlutterExceptionHandler replacementHandler =
-          (FlutterErrorDetails details) {};
+      void replacementHandler(FlutterErrorDetails details) {}
 
       FlutterError.onError = replacementHandler;
 

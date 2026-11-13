@@ -15,8 +15,7 @@ class LocalRpcServer {
   late final StreamSubscription<Socket> _serverSubscription;
   bool _closed = false;
 
-  LocalRpcServer._(this._serverSocket, {required int maxConnections})
-    : _maxConnections = maxConnections {
+  LocalRpcServer._(this._serverSocket, {required this._maxConnections}) {
     _serverSubscription = _serverSocket.listen(_accept);
   }
 

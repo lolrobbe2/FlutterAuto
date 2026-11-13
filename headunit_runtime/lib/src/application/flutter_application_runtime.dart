@@ -1,4 +1,3 @@
-import 'package:headunit_shared/headunit_shared_io.dart';
 import 'package:headunit_sdk/headunit_sdk.dart';
 
 import 'flutter_application_instance.dart';
