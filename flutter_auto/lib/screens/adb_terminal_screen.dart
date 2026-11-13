@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_auto_core/services/adb_manager.dart';
 import 'package:flutter_auto/services/terminal/terminal_command.dart';

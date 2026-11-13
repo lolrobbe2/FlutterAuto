@@ -152,27 +152,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  headunit_contracts:
-    dependency: "direct main"
-    description:
-      path: "../../headunit_contracts"
-      relative: true
-    source: path
-    version: "1.0.0"
-  headunit_ipc:
-    dependency: transitive
-    description:
-      path: "../../headunit_ipc"
-      relative: true
-    source: path
-    version: "0.1.0"
-  headunit_media:
-    dependency: transitive
-    description:
-      path: "../../headunit_media"
-      relative: true
-    source: path
-    version: "0.1.0"
   headunit_runtime:
     dependency: "direct main"
     description:
@@ -181,12 +160,19 @@ packages:
     source: path
     version: "0.0.1"
   headunit_sdk:
-    dependency: transitive
+    dependency: "direct main"
     description:
       path: "../../headunit_sdk"
       relative: true
     source: path
     version: "0.0.1"
+  headunit_shared:
+    dependency: "direct main"
+    description:
+      path: "../../headunit_shared"
+      relative: true
+    source: path
+    version: "1.0.0"
   hooks:
     dependency: transitive
     description:
