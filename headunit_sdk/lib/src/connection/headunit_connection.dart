@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:headunit_contracts/headunit_contracts.dart';
 import 'package:headunit_ipc/headunit_ipc.dart';
+import 'package:headunit_media/headunit_media.dart';
 
 /// Authenticated connection from an external application to its headunit.
 ///
@@ -14,6 +15,11 @@ class HeadunitConnection {
   final List<CapabilityId> grantedCapabilities;
   final String? locale;
   final String? productId;
+  final int? _mediaPort;
+  final String _host;
+  final String _token;
+  MediaStreamClient? _mediaClient;
+  Future<MediaStreamClient>? _mediaOpening;
 
   late final HeadunitServiceClient services = HeadunitServiceClient(_rpc);
 
@@ -23,7 +29,13 @@ class HeadunitConnection {
     required List<CapabilityId> grantedCapabilities,
     required this.locale,
     required this.productId,
+    required int? mediaPort,
+    required String host,
+    required String token,
   }) : _rpc = rpc,
+       _mediaPort = mediaPort,
+       _host = host,
+       _token = token,
        grantedCapabilities = List<CapabilityId>.unmodifiable(
          grantedCapabilities,
        );
@@ -32,6 +44,7 @@ class HeadunitConnection {
     required int port,
     required String token,
     String host = '127.0.0.1',
+    int? mediaPort,
     Duration timeout = const Duration(seconds: 10),
   }) async {
     if (host != '127.0.0.1') {
@@ -40,6 +53,9 @@ class HeadunitConnection {
         'host',
         'Headunit IPC is restricted to IPv4 loopback.',
       );
+    }
+    if (mediaPort != null && (mediaPort < 1 || mediaPort > 65535)) {
+      throw ArgumentError.value(mediaPort, 'mediaPort');
     }
     final RpcConnection rpc = await RpcConnection.connect(
       host: host,
@@ -84,6 +100,9 @@ class HeadunitConnection {
         grantedCapabilities: capabilities,
         locale: rawLocale as String?,
         productId: rawProductId as String?,
+        mediaPort: mediaPort,
+        host: host,
+        token: token,
       );
     } catch (_) {
       await rpc.close();
@@ -113,7 +132,66 @@ class HeadunitConnection {
 
   bool get isConnected => !_rpc.isClosed;
 
-  Future<void> close() => _rpc.close();
+  /// Opens the compressed-video channel supplied by the host launcher.
+  /// The host selects codec, resolution, frame rate and target bitrate.
+  Future<MediaStreamClient> openMediaStream({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (!isConnected) {
+      throw StateError('Headunit control connection is closed.');
+    }
+    final int? mediaPort = _mediaPort;
+    if (mediaPort == null) {
+      throw StateError('No media endpoint was supplied by the launcher.');
+    }
+    final MediaStreamClient? existing = _mediaClient;
+    if (existing != null && !existing.isClosed) {
+      return existing;
+    }
+    final Future<MediaStreamClient>? pending = _mediaOpening;
+    if (pending != null) {
+      return pending;
+    }
+
+    final Future<MediaStreamClient> opening = MediaStreamClient.connect(
+      host: _host,
+      port: mediaPort,
+      token: _token,
+      timeout: timeout,
+    );
+    _mediaOpening = opening;
+    try {
+      final MediaStreamClient client = await opening;
+      _mediaClient = client;
+      return client;
+    } finally {
+      if (identical(_mediaOpening, opening)) {
+        _mediaOpening = null;
+      }
+    }
+  }
+
+  Future<void> close() async {
+    try {
+      final Future<MediaStreamClient>? opening = _mediaOpening;
+      if (opening != null) {
+        try {
+          final MediaStreamClient client = await opening;
+          await client.close();
+        } catch (_) {
+          // The media handshake may fail while the control channel shuts down.
+        }
+        _mediaOpening = null;
+        _mediaClient = null;
+      } else {
+        final MediaStreamClient? client = _mediaClient;
+        _mediaClient = null;
+        await client?.close();
+      }
+    } finally {
+      await _rpc.close();
+    }
+  }
 
   static Map<String, Object?> _toStringMap(Object? value) {
     if (value is! Map) {

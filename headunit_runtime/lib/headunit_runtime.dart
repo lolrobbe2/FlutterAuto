@@ -14,3 +14,5 @@ export 'src/shell/headunit_shell.dart';
 // Preserve the existing public .happ package APIs.
 export 'src/application/flutter_application_package_reader.dart';
 export 'src/application/flutter_application_package_installer.dart';
+
+export 'package:headunit_media/headunit_media.dart';

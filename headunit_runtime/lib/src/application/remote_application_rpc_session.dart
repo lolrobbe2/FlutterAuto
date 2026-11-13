@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:headunit_contracts/headunit_contracts.dart';
 import 'package:headunit_ipc/headunit_ipc.dart';
+import 'package:headunit_media/headunit_media.dart';
 
 import '../services/remote_service_adapter.dart';
 import '../services/service_registry.dart';
@@ -14,24 +15,28 @@ import '../services/service_registry.dart';
 class RemoteApplicationEndpoint {
   final String host;
   final int port;
+  final int mediaPort;
   final String token;
 
   const RemoteApplicationEndpoint({
     required this.host,
     required this.port,
+    required this.mediaPort,
     required this.token,
   });
 }
 
 /// Owns the host side of one external application's RPC connection.
 ///
-/// It does not launch a process or transport video. Platform launchers pass
-/// [endpoint] to the child; the child connects with HeadunitConnection from
-/// headunit_sdk. The session exposes only the capabilities in [context].
+/// It does not launch a process or encode/decode video. Platform launchers
+/// pass [endpoint] to the child; the child uses the SDK control connection and
+/// the separate compressed-media connection. The session exposes only the
+/// capabilities in [context].
 class RemoteApplicationRpcSession {
   final ApplicationLaunchContext _context;
   final RemoteServiceBroker _serviceBroker;
   final LocalRpcServer _server;
+  final LocalMediaServer _mediaServer;
   final String _token;
   final Set<ServiceId> _eventSubscriptions = <ServiceId>{};
 
@@ -45,10 +50,12 @@ class RemoteApplicationRpcSession {
     required ApplicationLaunchContext context,
     required RemoteServiceBroker serviceBroker,
     required LocalRpcServer server,
+    required LocalMediaServer mediaServer,
     required String token,
   }) : _context = context,
        _serviceBroker = serviceBroker,
        _server = server,
+       _mediaServer = mediaServer,
        _token = token {
     _connectionSubscription = _server.connections.listen(_attachConnection);
   }
@@ -56,6 +63,8 @@ class RemoteApplicationRpcSession {
   static Future<RemoteApplicationRpcSession> bind({
     required ApplicationLaunchContext context,
     required RemoteServiceBroker serviceBroker,
+    VideoStreamConfiguration mediaConfiguration =
+        VideoStreamConfiguration.defaultConfiguration,
   }) async {
     if (serviceBroker.applicationId != context.applicationId) {
       throw ArgumentError(
@@ -74,16 +83,28 @@ class RemoteApplicationRpcSession {
         'Service broker capabilities do not match the application session.',
       );
     }
+    final String token = _createToken();
     final LocalRpcServer server = await LocalRpcServer.bind(
       maxConnections: 1,
     );
-    final String token = _createToken();
-    return RemoteApplicationRpcSession._(
-      context: context,
-      serviceBroker: serviceBroker,
-      server: server,
-      token: token,
-    );
+    try {
+      final LocalMediaServer mediaServer = await LocalMediaServer.bind(
+        token: token,
+        configuration: mediaConfiguration,
+        maxConnections: 1,
+        maxQueuedFrames: 2,
+      );
+      return RemoteApplicationRpcSession._(
+        context: context,
+        serviceBroker: serviceBroker,
+        server: server,
+        mediaServer: mediaServer,
+        token: token,
+      );
+    } catch (_) {
+      await server.close();
+      rethrow;
+    }
   }
 
   RemoteApplicationEndpoint get endpoint {
@@ -91,12 +112,18 @@ class RemoteApplicationRpcSession {
     return RemoteApplicationEndpoint(
       host: _server.host,
       port: _server.port,
+      mediaPort: _mediaServer.port,
       token: _token,
     );
   }
 
   bool get isConnected => _connection != null && !_connection!.isClosed;
   bool get isAuthenticated => _authenticated;
+
+  /// Host-side compressed video connections for this application session.
+  /// Subscribe before launching the child process.
+  Stream<MediaStreamConnection> get mediaConnections =>
+      _mediaServer.connections;
 
   void _attachConnection(RpcConnection connection) {
     final RpcConnection? existing = _connection;
@@ -363,6 +390,7 @@ class RemoteApplicationRpcSession {
     _eventSubscriptions.clear();
     await _connectionSubscription?.cancel();
     await _server.close();
+    await _mediaServer.close();
     _connection = null;
   }
 }

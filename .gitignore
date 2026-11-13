@@ -2,3 +2,5 @@ flutter_auto_core/assets/security/headunit-cert.pem
 flutter_auto_core/assets/security/headunit-key.pem
 headunit_ipc/.dart_tool/**
 headunit_ipc/build/**
+headunit_media/.dart_tool/**
+headunit_media/build/**
