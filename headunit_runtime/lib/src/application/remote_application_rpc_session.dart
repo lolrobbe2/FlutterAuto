@@ -35,6 +35,7 @@ class RemoteApplicationRpcSession {
   final LocalRpcServer _server;
   final LocalMediaServer _mediaServer;
   final String _token;
+  final Completer<void> _authenticationCompleter = Completer<void>();
   final Set<ServiceId> _eventSubscriptions = <ServiceId>{};
 
   StreamSubscription<RpcConnection>? _connectionSubscription;
@@ -115,6 +116,15 @@ class RemoteApplicationRpcSession {
   /// Subscribe before launching the child process.
   Stream<MediaStreamConnection> get mediaConnections =>
       _mediaServer.connections;
+  Future<void> waitUntilAuthenticated({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    _ensureActive();
+    if (_authenticated) {
+      return;
+    }
+    await _authenticationCompleter.future.timeout(timeout);
+  }
 
   void _attachConnection(RpcConnection connection) {
     final RpcConnection? existing = _connection;
@@ -168,6 +178,9 @@ class RemoteApplicationRpcSession {
     _authenticationTimer?.cancel();
     _authenticationTimer = null;
     _authenticated = true;
+    if (!_authenticationCompleter.isCompleted) {
+      _authenticationCompleter.complete();
+    }
     return <String, Object?>{
       'applicationId': _context.applicationId.value,
       'grantedCapabilities': _context.grantedCapabilities

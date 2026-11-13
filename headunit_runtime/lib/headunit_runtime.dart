@@ -18,3 +18,5 @@ export 'src/application/flutter_application_package_installer.dart';
 export 'package:headunit_shared/headunit_shared_io.dart';
 
 export 'src/media/presentation/headunit_media_flutter.dart';
+export 'src/application/application_process_launcher.dart';
+export 'src/application/external_flutter_application_instance.dart';

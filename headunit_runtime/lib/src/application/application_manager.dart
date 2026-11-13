@@ -15,14 +15,18 @@ class ApplicationManager {
 
   final Map<ApplicationId, Future<ApplicationInstance>> _launchOperations = {};
 
+  final Map<ApplicationId, StreamSubscription<ApplicationLifecycleEvent>>
+  _instanceLifecycleSubscriptions = {};
+  final Set<ApplicationId> _readyApplications = {};
+
   final StreamController<ApplicationManagerEvent> _events =
       StreamController<ApplicationManagerEvent>.broadcast();
   final ApplicationErrorReporter _errorReporter;
 
   ApplicationId? _foregroundApplicationId;
   bool _disposing = false;
-  final bool _disposed = false;
-  final int _transitionSequence = 0;
+  bool _disposed = false;
+  int _transitionSequence = 0;
   Future<void>? _disposalFuture;
   Future<void> _transitionQueue = Future<void>.value();
 
@@ -167,6 +171,7 @@ class ApplicationManager {
 
         case ApplicationLifecycleState.background:
           await setForeground(id);
+          _readyApplications.add(id);
           return instance;
 
         case ApplicationLifecycleState.suspended:
@@ -187,6 +192,7 @@ class ApplicationManager {
 
           try {
             await setForeground(id);
+            _readyApplications.add(id);
             return instance;
           } catch (_) {
             await _cleanupFailedInstance(id, instance);
@@ -264,7 +270,7 @@ class ApplicationManager {
     }
 
     _instances[id] = newInstance;
-
+    _watchInstanceLifecycle(id, newInstance);
     _emitEvent(
       ApplicationManagerEventType.applicationsChanged,
       applicationId: id,
@@ -302,9 +308,11 @@ class ApplicationManager {
       }
 
       await setForeground(id);
-
+      _readyApplications.add(id);
       return newInstance;
     } catch (_) {
+      _readyApplications.remove(id);
+      await _cancelInstanceLifecycleEvents(id);
       _instances.remove(id);
 
       if (_foregroundApplicationId == id) {
@@ -338,11 +346,68 @@ class ApplicationManager {
     return _enqueueTransition(() => _setBackgroundInternal(id));
   }
 
+  void _watchInstanceLifecycle(ApplicationId id, ApplicationInstance instance) {
+    _instanceLifecycleSubscriptions[id] = instance.lifecycleEvents.listen((
+      ApplicationLifecycleEvent event,
+    ) {
+      if (!identical(_instances[id], instance)) {
+        return;
+      }
+
+      _emitEvent(
+        ApplicationManagerEventType.applicationsChanged,
+        applicationId: id,
+      );
+
+      if (event.currentState == ApplicationLifecycleState.failed &&
+          _readyApplications.contains(id)) {
+        unawaited(_handleUnexpectedInstanceFailure(id, instance));
+      }
+    });
+  }
+
+  Future<void> _handleUnexpectedInstanceFailure(
+    ApplicationId id,
+    ApplicationInstance instance,
+  ) async {
+    if (_disposing || _disposed) {
+      return;
+    }
+    try {
+      await _enqueueTransition(() async {
+        if (!identical(_instances[id], instance) ||
+            instance.state != ApplicationLifecycleState.failed) {
+          return;
+        }
+        await _cleanupFailedInstance(id, instance);
+      });
+    } catch (error, stackTrace) {
+      _reportError(
+        applicationId: id,
+        source: ApplicationErrorSource.lifecycle,
+        message: 'Failed to clean up unexpectedly terminated application $id.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<void> _cancelInstanceLifecycleEvents(ApplicationId id) async {
+    final StreamSubscription<ApplicationLifecycleEvent>? subscription =
+        _instanceLifecycleSubscriptions.remove(id);
+    await subscription?.cancel();
+  }
+
   Future<void> _cleanupFailedInstance(
     ApplicationId id,
     ApplicationInstance instance,
   ) async {
     try {
+      if (!identical(_instances[id], instance)) {
+        return;
+      }
+      _readyApplications.remove(id);
+      await _cancelInstanceLifecycleEvents(id);
       await instance.stop();
     } catch (error, stackTrace) {
       _reportError(
@@ -566,6 +631,9 @@ class ApplicationManager {
       return;
     }
 
+    _readyApplications.remove(id);
+    await _cancelInstanceLifecycleEvents(id);
+
     try {
       await instance.stop();
     } catch (error, stackTrace) {
@@ -649,6 +717,8 @@ class ApplicationManager {
 
       try {
         if (instance != null) {
+          _readyApplications.remove(id);
+          await _cancelInstanceLifecycleEvents(id);
           await instance.stop();
         }
       } catch (error, stackTrace) {
@@ -668,6 +738,7 @@ class ApplicationManager {
     }
 
     await _events.close();
+    _disposed = true;
   }
 
   void _ensureActive() {
@@ -697,16 +768,21 @@ class ApplicationManager {
   }
 
   Future<void> _enqueueTransition(Future<void> Function() operation) {
+    _transitionSequence++;
+
     final Future<void> transition = _transitionQueue.then<void>(
       (_) => operation(),
     );
 
     // Keep the queue usable even when an individual transition fails.
     // The returned transition still propagates its original error.
-    _transitionQueue = transition.then<void>(
+    final Future<void> settled = transition.then<void>(
       (_) {},
       onError: (Object error, StackTrace stackTrace) {},
     );
+    _transitionQueue = settled.whenComplete(() {
+      _transitionSequence--;
+    });
 
     return transition;
   }

@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+
+import 'media_demo/remote_application_child.dart';
+import 'media_demo/remote_demo_service.dart';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
@@ -8,8 +12,13 @@ import 'package:headunit_runtime/headunit_runtime.dart';
 import 'runtime_example_application.dart';
 import 'media_demo/remote_video_demo_controller.dart';
 
-void main() {
+Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (arguments.contains(WindowsApplicationProcessLauncher.childModeArgument)) {
+    await RemoteApplicationChildProcess.run();
+    return;
+  }
 
   runApp(const RuntimeExampleApp());
 }
@@ -58,7 +67,10 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
   bool _shuttingDown = false;
 
   String _status = 'Initializing runtime...';
-
+  ApplicationId? _externalApplicationId;
+  ExternalFlutterApplicationInstance? _externalApplicationInstance;
+  bool _startingExternalApplication = false;
+  StreamSubscription<dynamic>? _managerEventSubscription;
   @override
   void initState() {
     super.initState();
@@ -66,12 +78,65 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
   }
 
   Widget _buildManagedApplicationCard() {
+    if (!_runtime.isRunning) {
+      return const Card(
+        child: SizedBox(
+          height: 220,
+          child: Center(child: Text('No managed application running')),
+        ),
+      );
+    }
+
     return Card(
       child: SizedBox(
-        height: 200,
-        child:
-            _managedApplicationWidget ??
-            const Center(child: Text('No managed application running')),
+        height: 260,
+        child: HeadunitShell(
+          applicationManager: _runtime.applicationManager,
+          homeBuilder: (BuildContext context) =>
+              const Center(child: Text('Headunit home')),
+          applicationBuilder:
+              (BuildContext context, ApplicationInstance instance) {
+                if (instance is ExternalFlutterApplicationInstance) {
+                  return ValueListenableBuilder<MediaStreamConnection?>(
+                    valueListenable: instance.mediaConnection,
+                    builder:
+                        (
+                          BuildContext context,
+                          MediaStreamConnection? connection,
+                          Widget? child,
+                        ) {
+                          if (connection == null) {
+                            return const Center(
+                              child: Text(
+                                'Waiting for external application media...',
+                              ),
+                            );
+                          }
+                          return ColoredBox(
+                            color: const Color(0xFF101820),
+                            child: RemoteVideoSurface(
+                              connection: connection,
+                              onPointerEvent: (ApplicationPointerEvent event) {
+                                instance.sendPointerEvent(event);
+                                _handleRemoteVideoPointer(event);
+                              },
+                            ),
+                          );
+                        },
+                  );
+                }
+
+                if (instance is FlutterApplicationInstance) {
+                  return instance.widget;
+                }
+
+                return const Center(
+                  child: Text(
+                    'No renderer is registered for this application.',
+                  ),
+                );
+              },
+        ),
       ),
     );
   }
@@ -79,13 +144,30 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
   Future<void> _initializeRuntime() async {
     try {
       await _runtime.initialize();
-
+      _runtime.registerRemoteService(
+        RemoteServiceAdapter(
+          serviceId: RemoteDemoService.key.serviceId,
+          methods: <String, RemoteServiceMethodHandler>{
+            'getStatus': (Map<String, Object?> arguments) => <String, Object?>{
+              'status': 'Authenticated SDK RPC service acquired from host.',
+            },
+          },
+        ),
+      );
       ApplicationId applicationId = ApplicationId(
         'com.example.runtime_example',
       );
 
       final FlutterApplicationRuntime flutterRuntime =
-          FlutterApplicationRuntime();
+          FlutterApplicationRuntime(
+            mediaConfiguration: const VideoStreamConfiguration(
+              codec: VideoCodec.h264,
+              width: 640,
+              height: 360,
+              framesPerSecond: 20,
+              targetBitrateBitsPerSecond: 600000,
+            ),
+          );
 
       flutterRuntime.registerApplication(
         id: applicationId,
@@ -95,7 +177,41 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
       final ApplicationManager manager = _runtime.applicationManager;
 
       manager.registerRuntime(flutterRuntime);
+      if (Platform.isWindows) {
+        final File packageFile = File('build/remote_video_demo.happ');
+        if (await packageFile.exists()) {
+          const String externalId = 'com.example.remote_video_demo';
+          final Directory applicationsDirectory = Directory(
+            'build/installed_apps',
+          );
+          final Directory oldInstallation = Directory(
+            '${applicationsDirectory.path}${Platform.pathSeparator}$externalId',
+          );
 
+          // This is a generated demo install directory. The host must have stopped
+          // its previous child before replacing it.
+          if (await oldInstallation.exists()) {
+            await oldInstallation.delete(recursive: true);
+          }
+
+          final InstalledFlutterApplication installed =
+              await FlutterApplicationPackageInstaller().install(
+                packageFile: packageFile,
+                applicationsDirectory: applicationsDirectory,
+                platform: FlutterApplicationPlatform.windows,
+                architecture: 'x64',
+              );
+
+          flutterRuntime.registerInstalledApplication(installed);
+          manager.registerApplication(
+            ApplicationRegistration(
+              manifest: installed.application,
+              grantedCapabilities: const <CapabilityId>[],
+            ),
+          );
+          _externalApplicationId = installed.application.id;
+        }
+      }
       manager.registerApplication(
         ApplicationRegistration(
           manifest: ApplicationManifest(
@@ -109,9 +225,24 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
           grantedCapabilities: [CapabilityId('audio.sessions.manage')],
         ),
       );
-
-      final FlutterApplicationInstance instance =
-          await manager.launch(applicationId) as FlutterApplicationInstance;
+      _managerEventSubscription = manager.events.listen((_) {
+        final ApplicationId? id = _externalApplicationId;
+        if (!mounted || id == null) {
+          return;
+        }
+        final ApplicationInstance? current = manager.getInstance(id);
+        if (current == null) {
+          setState(() {
+            _externalApplicationInstance = null;
+          });
+        } else if (_externalApplicationInstance != null &&
+            current is ExternalFlutterApplicationInstance) {
+          setState(() {
+            _externalApplicationInstance = current;
+          });
+        }
+      });
+      await manager.launch(applicationId);
 
       if (!mounted) {
         return;
@@ -119,9 +250,11 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
 
       setState(() {
         _audioService = _runtime.audioService;
-        _managedApplicationWidget = instance.widget;
+
         _initializing = false;
-        _status = 'Runtime and application initialized successfully.';
+        _status = _externalApplicationId == null
+            ? 'Runtime ready. Build the Windows HAPP to enable external launch.'
+            : 'Runtime ready. The Windows external application is installed.';
       });
     } catch (error) {
       if (!mounted) {
@@ -310,6 +443,152 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
                   onPressed: demo == null ? null : _stopRemoteVideoDemo,
                   icon: const Icon(Icons.stop),
                   label: const Text('Stop video demo'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startExternalApplication() async {
+    final ApplicationId? id = _externalApplicationId;
+    if (id == null || _startingExternalApplication || _shuttingDown) {
+      return;
+    }
+
+    setState(() {
+      _startingExternalApplication = true;
+      _status = 'Launching external Flutter process...';
+    });
+
+    try {
+      if (_startingRemoteVideoDemo) {
+        throw StateError(
+          'Stop the in-process video startup before launching the external app.',
+        );
+      }
+      // The FFmpegKit presentation path may use a process-wide FFplay surface.
+      // Unmount the in-process baseline before mounting the external surface.
+      await _stopRemoteVideoDemo();
+
+      final ApplicationInstance instance = await _runtime.applicationManager
+          .launch(id);
+      if (instance is! ExternalFlutterApplicationInstance) {
+        throw StateError(
+          'The Flutter runtime returned an in-process instance.',
+        );
+      }
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _externalApplicationInstance = instance;
+        _startingExternalApplication = false;
+        _status = 'External process ${instance.processId} connected.';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _startingExternalApplication = false;
+        _status = 'External application launch failed: $error';
+      });
+    }
+  }
+
+  Future<void> _stopExternalApplication() async {
+    final ApplicationId? id = _externalApplicationId;
+    if (id == null) {
+      return;
+    }
+
+    try {
+      await _runtime.applicationManager.stop(id);
+
+      // The local sample was backgrounded when the external app became
+      // foreground. Restore it when the external process is stopped.
+      final ApplicationId localId = ApplicationId(
+        'com.example.runtime_example',
+      );
+      if (_runtime.applicationManager.getInstance(localId) != null) {
+        await _runtime.applicationManager.setForeground(localId);
+      }
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _externalApplicationInstance = null;
+        _status = 'External application stopped and process cleaned up.';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _status = 'External application stop failed: $error';
+      });
+    }
+  }
+
+  Widget _buildExternalApplicationCard() {
+    final ExternalFlutterApplicationInstance? instance =
+        _externalApplicationInstance;
+    final bool available = _externalApplicationId != null;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'External Windows application',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text('Installed: $available'),
+            Text(
+              instance == null
+                  ? 'Process: not running'
+                  : 'Process: ${instance.state.name} · PID ${instance.processId}',
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                FilledButton.icon(
+                  onPressed:
+                      !available ||
+                          instance != null ||
+                          _startingExternalApplication ||
+                          _shuttingDown
+                      ? null
+                      : _startExternalApplication,
+                  icon: _startingExternalApplication
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.launch),
+                  label: Text(
+                    _startingExternalApplication
+                        ? 'Launching...'
+                        : 'Launch external app',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: instance == null || _shuttingDown
+                      ? null
+                      : _stopExternalApplication,
+                  icon: const Icon(Icons.stop),
+                  label: const Text('Stop external app'),
                 ),
               ],
             ),
@@ -557,6 +836,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
     if (demo != null) {
       unawaited(demo.dispose());
     }
+    unawaited(_managerEventSubscription?.cancel());
     unawaited(_runtime.dispose());
     super.dispose();
   }
@@ -586,6 +866,8 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
           _buildRuntimeCard(),
           const SizedBox(height: 16),
           _buildManagedApplicationCard(),
+          const SizedBox(height: 16),
+          _buildExternalApplicationCard(),
           const SizedBox(height: 16),
           _buildRemoteVideoDemoCard(),
           const SizedBox(height: 16),
