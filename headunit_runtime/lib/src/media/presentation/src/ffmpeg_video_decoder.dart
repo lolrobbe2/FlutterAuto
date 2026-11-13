@@ -239,15 +239,10 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
       // Windows FFplayDesktopTexture uses the SDL2 rendering path.
       '-f',
       demuxer,
-      // Raw H.264/HEVC does not carry a reliable presentation time base.
-      // Apply the configured input frame rate before opening the demuxer.
-      '-r',
-      configuration.framesPerSecond.toString(),
       '-i',
       inputUri.toString(),
       '-an',
       '-sn',
-      '-dn',
       '-sync',
       'video',
       '-framedrop',

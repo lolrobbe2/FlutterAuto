@@ -33,7 +33,6 @@ void main() {
       );
 
       expect(arguments[arguments.indexOf('-f') + 1], 'h264');
-      expect(arguments[arguments.indexOf('-r') + 1], '30');
       expect(arguments[arguments.indexOf('-i') + 1], inputUri.toString());
       expect(arguments, containsAll(<String>['-an', '-sn', '-dn']));
       expect(arguments, contains('-framedrop'));
@@ -51,7 +50,6 @@ void main() {
         );
 
         expect(arguments[arguments.indexOf('-f') + 1], 'hevc');
-        expect(arguments[arguments.indexOf('-r') + 1], '25');
         expect(arguments[arguments.indexOf('-i') + 1], inputUri.toString());
       },
     );

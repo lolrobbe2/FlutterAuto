@@ -33,8 +33,65 @@ class RemoteApplicationChildProcess {
       timeout: const Duration(seconds: 10),
     );
 
+    bool shuttingDown = false;
+    _RemoteH264Sender? sender;
+
+    late final StreamSubscription<HeadunitHostEvent> lifecycleSubscription;
+
+    Future<void> shutdown() async {
+      if (shuttingDown) return;
+
+      shuttingDown = true;
+      await lifecycleSubscription.cancel();
+      await sender?.dispose();
+      await connection.close();
+      exit(0);
+    }
+
+    lifecycleSubscription = connection.notifications.listen(
+      (HeadunitHostEvent event) {
+        if (event.method == 'application.lifecycle' &&
+            event.parameters['state'] == 'stopping') {
+          unawaited(shutdown());
+        }
+      },
+      onDone: () {
+        if (!shuttingDown) {
+          unawaited(shutdown());
+        }
+      },
+    );
+
+    // Publish the UI immediately. It must not depend on the video subsystem.
+    final ReferenceMusicUiDemo uiDemo = ReferenceMusicUiDemo(connection.ui);
+
     try {
-      final MediaStreamClient media = await connection.openMediaStream();
+      await uiDemo.publish();
+      stderr.writeln('Headunit UI page published successfully.');
+    } catch (error, stackTrace) {
+      stderr.writeln('Failed to publish headunit UI: $error');
+      await lifecycleSubscription.cancel();
+      await connection.close();
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+
+    // The remote service is an optional demo feature.
+    try {
+      final RemoteDemoService demoService = await connection.services.acquire(
+        RemoteDemoService.key,
+      );
+      final String serviceStatus = await demoService.getStatus();
+      stderr.writeln('Remote service: $serviceStatus');
+    } catch (error) {
+      stderr.writeln('Remote service demo unavailable: $error');
+    }
+
+    // Video is also optional. A video failure must not remove the UI.
+    MediaStreamClient? media;
+
+    try {
+      media = await connection.openMediaStream();
+
       final ByteData asset = await rootBundle.load(_videoAsset);
       final Uint8List bytes = asset.buffer.asUint8List(
         asset.offsetInBytes,
@@ -42,51 +99,18 @@ class RemoteApplicationChildProcess {
       );
       final List<H264AccessUnit> accessUnits = H264AnnexBParser.parse(bytes);
 
-      // This real SDK acquisition exercises the authenticated service RPC
-      // path independently of the H.264 media transport.
-      final RemoteDemoService demoService = await connection.services.acquire(
-        RemoteDemoService.key,
-      );
-      final String serviceStatus = await demoService.getStatus();
-      stderr.writeln('Remote service: $serviceStatus');
+      sender = _RemoteH264Sender(client: media, accessUnits: accessUnits);
 
-      final ReferenceMusicUiDemo uiDemo = ReferenceMusicUiDemo(connection.ui);
-      await uiDemo.publish();
-
-      final _RemoteH264Sender sender = _RemoteH264Sender(
-        client: media,
-        accessUnits: accessUnits,
-      );
-
-      bool shuttingDown = false;
-      late final StreamSubscription<HeadunitHostEvent> lifecycleSubscription;
-
-      Future<void> shutdown() async {
-        if (shuttingDown) {
-          return;
-        }
-        shuttingDown = true;
-        await lifecycleSubscription.cancel();
-        await sender.dispose();
-        await connection.close();
-        exit(0);
+      if (!shuttingDown) {
+        sender.start();
       }
+    } catch (error, stackTrace) {
+      stderr.writeln('Optional video demo unavailable: $error');
+      stderr.writeln(stackTrace);
 
-      lifecycleSubscription = connection.notifications.listen((
-        HeadunitHostEvent event,
-      ) {
-        if (event.method == 'application.lifecycle' &&
-            event.parameters['state'] == 'stopping') {
-          unawaited(shutdown());
-        }
-      }, onDone: () => unawaited(shutdown()));
-
-      // The shell owns the visible Flutter widgets. This process only
-      // publishes its semantic UI and optional media stream.
-      sender.start();
-    } catch (_) {
-      await connection.close();
-      rethrow;
+      if (media != null) {
+        await media.close();
+      }
     }
   }
 }

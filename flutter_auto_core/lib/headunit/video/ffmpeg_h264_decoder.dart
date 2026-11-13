@@ -237,9 +237,6 @@ class FfmpegH264Decoder {
 
         '-c:v',
         'rawvideo',
-
-        '-r',
-        '30',
         '-fps_mode',
         'cfr',
 
