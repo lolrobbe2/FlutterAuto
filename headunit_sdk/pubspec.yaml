@@ -1,6 +1,7 @@
 name: headunit_sdk
 description: "A new Flutter package project."
 version: 0.0.1
+publish_to: none
 homepage:
 
 environment:
@@ -10,12 +11,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  headunit_contracts:
-    path: ../headunit_contracts
-  headunit_ipc:
-    path: ../headunit_ipc
-  headunit_media:
-    path: ../headunit_media
+  headunit_shared:
+    path: ../headunit_shared
 
 dev_dependencies:
   flutter_test:

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
 import 'package:headunit_runtime/src/services/service_registry.dart';
 import 'package:headunit_runtime/src/errors/application_error_reporter_impl.dart';

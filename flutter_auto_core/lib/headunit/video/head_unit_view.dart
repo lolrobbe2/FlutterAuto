@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../generated/oaa/video/VideoResolutionEnum.pbenum.dart';
 import 'ffmpeg_h264_decoder.dart';
 import 'video_message_id.dart';

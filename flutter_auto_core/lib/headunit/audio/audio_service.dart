@@ -4,12 +4,10 @@ import 'package:logging/logging.dart';
 
 class AudioService {
   static final Logger _log = Logger('AndroidAutoTlsClient');
-  static bool _initialized = false;
+  static final bool _initialized = false;
   static final Map<int, AudioStream> streams = {};
 
-  /**
-   * This function initializes the internal [SoLoud] backend.
-   */
+  /// This function initializes the internal [SoLoud] backend.
   static Future<bool> initialize() async {
     if (_initialized) {
       //TODO reset audio ?!

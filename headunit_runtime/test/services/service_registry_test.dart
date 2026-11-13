@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 import 'package:headunit_runtime/src/services/service_registry.dart';
 
 import '../support/test_fixtures.dart';

@@ -27,6 +27,7 @@ dependencies:
   flutter_svg: ^2.3.0
   flutter_soloud: ^5.2.2
 
+  material_ui: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 class ApplicationErrorReporterImpl implements ApplicationErrorReporter {
   final StreamController<ApplicationError> _controller;

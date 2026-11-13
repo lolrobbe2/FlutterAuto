@@ -34,8 +34,10 @@ dependencies:
   headunit_runtime:
     path: ../
 
-  headunit_contracts:
-    path: ../../headunit_contracts
+  headunit_shared:
+    path: ../../headunit_shared
+  headunit_sdk:
+    path: ../../headunit_sdk
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
@@ -93,3 +95,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+hooks:
+  user_defines:
+    ffmpeg_kit_extended_flutter:
+      type: "video_hw"
+      gpl: false
+      small: true

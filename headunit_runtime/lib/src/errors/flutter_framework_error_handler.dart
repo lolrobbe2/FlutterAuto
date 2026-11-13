@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 class FlutterFrameworkErrorHandler {
   final ApplicationErrorReporter _errorReporter;
@@ -12,8 +12,8 @@ class FlutterFrameworkErrorHandler {
   late final FlutterExceptionHandler _installedHandler = _handleError;
 
   FlutterFrameworkErrorHandler({
-    required ApplicationErrorReporter errorReporter,
-  }) : _errorReporter = errorReporter;
+    required this._errorReporter,
+  });
 
   void install() {
     if (_disposed) {
