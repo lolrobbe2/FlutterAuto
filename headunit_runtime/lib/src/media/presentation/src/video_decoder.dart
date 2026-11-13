@@ -23,6 +23,18 @@ abstract interface class VideoDecoder {
   Future<void> dispose();
 }
 
+/// Optional startup phase for decoders whose player must wait until
+/// [VideoDecoder.buildView] has been mounted in the widget tree.
+///
+/// Keeping this separate preserves compatibility with decoder implementations
+/// that can accept frames immediately after construction.
+abstract interface class StartableVideoDecoder {
+  /// Starts decoding after the output widget has been mounted.
+  ///
+  /// Implementations should make this operation idempotent.
+  Future<void> start();
+}
+
 typedef VideoDecoderFactory = Future<VideoDecoder> Function(
   VideoStreamConfiguration configuration,
 );

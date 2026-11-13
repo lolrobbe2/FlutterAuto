@@ -17,13 +17,14 @@ import 'video_decoder.dart';
 ///
 /// FFplayKit owns decoding and the Flutter output surface. FlutterAuto does not
 /// implement or maintain platform-native decoder code.
-class FfmpegVideoDecoder implements VideoDecoder {
+class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
   FfmpegVideoDecoder._({
-    required this._surface,
-    required this._session,
-    required this._inputSocket,
-    required this._playbackState,
-  });
+    required FFplaySurface surface,
+    required ServerSocket server,
+    required VideoStreamConfiguration configuration,
+  }) : _surface = surface,
+       _server = server,
+       _configuration = configuration;
 
   static const Duration _connectTimeout = Duration(seconds: 10);
   static const Duration _stopTimeout = Duration(seconds: 3);
@@ -33,25 +34,32 @@ class FfmpegVideoDecoder implements VideoDecoder {
   static bool _decoderInUse = false;
 
   final FFplaySurface _surface;
-  final FFplaySession _session;
-  final Socket _inputSocket;
-  final _PlaybackState _playbackState;
+  final VideoStreamConfiguration _configuration;
+  ServerSocket? _server;
+  FFplaySession? _session;
+  Socket? _inputSocket;
+  _PlaybackState? _playbackState;
+  final Completer<void> _disposeSignal = Completer<void>();
 
   bool _disposed = false;
+  bool _started = false;
   bool _awaitingKeyFrame = true;
   int? _lastSequenceNumber;
+  Future<void>? _startFuture;
   Future<void>? _disposeFuture;
+  Future<void> _decodeTail = Future<void>.value();
 
-  /// Creates an FFplay surface and starts a reader for the configured codec.
+  /// Creates the Flutter output surface and local input listener.
   ///
-  /// The consuming application must include an FFmpegKit video bundle. For
+  /// Playback is intentionally not started here. [start] is called by
+  /// [RemoteVideoSurface] only after [buildView] has been mounted. The
+  /// consuming application must include an FFmpegKit video bundle. For
   /// embedded production builds, deploy a custom minimal FFmpegKit artifact;
   /// the stock video bundle is too large for most constrained devices.
   static Future<FfmpegVideoDecoder> create(
     VideoStreamConfiguration configuration,
   ) async {
     configuration.validate();
-
     if (_decoderInUse) {
       throw StateError(
         'FlutterAuto supports one foreground remote video surface per process.',
@@ -61,10 +69,6 @@ class FfmpegVideoDecoder implements VideoDecoder {
 
     FFplaySurface? surface;
     ServerSocket? server;
-    Socket? inputSocket;
-    FFplaySession? session;
-    _PlaybackState? playbackState;
-
     try {
       // Initialization is idempotent and intentionally lazy: headunits which
       // never launch external apps do not initialize the FFmpeg runtime.
@@ -88,88 +92,18 @@ class FfmpegVideoDecoder implements VideoDecoder {
       // Loopback TCP provides the same input protocol on Windows and Android
       // without making FlutterAuto depend on OS-specific named pipes.
       server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-      final Future<Socket> incomingSocket = server.first.timeout(
-        _connectTimeout,
-        onTimeout: () {
-          throw TimeoutException(
-            'FFplay did not connect to its local video input.',
-            _connectTimeout,
-          );
-        },
-      );
-
-      final Uri inputUri = Uri(
-        scheme: 'tcp',
-        host: InternetAddress.loopbackIPv4.address,
-        port: server.port,
-        queryParameters: const <String, String>{'tcp_nodelay': '1'},
-      );
-      final List<String> arguments = buildPlayerArguments(
-        configuration,
-        inputUri,
-      );
-      final String command = arguments.join(' ');
-
-      final _PlaybackState activePlaybackState = _PlaybackState();
-      playbackState = activePlaybackState;
-      session = await FFplayKit.executeAsync(
-        command,
-        onComplete: activePlaybackState.complete,
-      );
-
-      // Fail immediately if FFplay exits during startup instead of waiting for
-      // the socket timeout. This makes missing codecs/protocols visible as a
-      // useful startup error and avoids a needless ten-second delay.
-      inputSocket = await Future.any<Socket>(<Future<Socket>>[
-        incomingSocket,
-        activePlaybackState.completed.future.then<Socket>((_) {
-          final String? failure = activePlaybackState.failure;
-          throw StateError(
-            failure == null
-                ? 'FFplay stopped before opening its local video input.'
-                : 'FFplay failed during startup: $failure',
-          );
-        }),
-      ]);
-      await server.close();
-      server = null;
-      inputSocket.setOption(SocketOption.tcpNoDelay, true);
 
       final FfmpegVideoDecoder decoder = FfmpegVideoDecoder._(
         surface: surface,
-        session: session,
-        inputSocket: inputSocket,
-        playbackState: activePlaybackState,
+        server: server,
+        configuration: configuration,
       );
-
-      // Ownership has moved into the decoder.
       surface = null;
-      session = null;
-      inputSocket = null;
+      server = null;
       return decoder;
     } catch (_) {
-      inputSocket?.destroy();
       if (server != null) {
         await server.close();
-      }
-      if (session != null) {
-        try {
-          FFplayKit.cancel(session);
-        } catch (_) {
-          // Preserve the original initialization failure.
-        }
-        if (playbackState != null) {
-          try {
-            await playbackState.completed.future.timeout(_stopTimeout);
-          } catch (_) {
-            // Preserve the original initialization failure.
-          }
-        }
-        try {
-          session.close();
-        } catch (_) {
-          // Preserve the original initialization failure.
-        }
       }
       if (surface != null) {
         try {
@@ -179,6 +113,89 @@ class FfmpegVideoDecoder implements VideoDecoder {
         }
       }
       _decoderInUse = false;
+      rethrow;
+    }
+  }
+
+  @override
+  Widget buildView() => _surface.toWidget();
+
+  @override
+  Future<void> start() => _startFuture ??= _startCore();
+
+  Future<void> _startCore() async {
+    if (_disposed) {
+      throw StateError('The FFmpeg video decoder has been disposed.');
+    }
+    if (_started) {
+      return;
+    }
+
+    final ServerSocket server = _server ??
+        (throw StateError('The FFmpeg video input listener is unavailable.'));
+    final Future<Socket> incomingSocket = server.first.timeout(
+      _connectTimeout,
+      onTimeout: () {
+        throw TimeoutException(
+          'FFplay did not connect to its local video input.',
+          _connectTimeout,
+        );
+      },
+    );
+    final Uri inputUri = Uri(
+      scheme: 'tcp',
+      host: InternetAddress.loopbackIPv4.address,
+      port: server.port,
+      queryParameters: const <String, String>{'tcp_nodelay': '1'},
+    );
+    final List<String> arguments = buildPlayerArguments(
+      _configuration,
+      inputUri,
+    );
+    final _PlaybackState playbackState = _PlaybackState();
+    _playbackState = playbackState;
+
+    try {
+      final FFplaySession session = await FFplayKit.executeAsync(
+        arguments.join(' '),
+        onComplete: playbackState.complete,
+      );
+      _session = session;
+
+      if (_disposed) {
+        throw StateError('The FFmpeg video decoder was disposed during startup.');
+      }
+
+      // Fail immediately if FFplay exits during startup instead of waiting for
+      // the socket timeout. Disposal also wins this race so surface teardown
+      // cannot leave the decoder waiting for a connection.
+      final Socket socket = await Future.any<Socket>(<Future<Socket>>[
+        incomingSocket,
+        playbackState.completed.future.then<Socket>((_) {
+          final String? failure = playbackState.failure;
+          throw StateError(
+            failure == null
+                ? 'FFplay stopped before opening its local video input.'
+                : 'FFplay failed during startup: $failure',
+          );
+        }),
+        _disposeSignal.future.then<Socket>((_) {
+          throw StateError('The FFmpeg video decoder was disposed during startup.');
+        }),
+      ]);
+
+      if (_disposed) {
+        socket.destroy();
+        throw StateError('The FFmpeg video decoder was disposed during startup.');
+      }
+
+      await server.close();
+      _server = null;
+      socket.setOption(SocketOption.tcpNoDelay, true);
+      _inputSocket = socket;
+      _started = true;
+    } catch (_) {
+      await _closePlaybackResources();
       rethrow;
     }
   }
@@ -202,7 +219,6 @@ class FfmpegVideoDecoder implements VideoDecoder {
       VideoCodec.h264 => 'h264',
       VideoCodec.h265 => 'hevc',
     };
-
     final List<String> arguments = <String>[
       '-hide_banner',
       '-loglevel',
@@ -235,29 +251,43 @@ class FfmpegVideoDecoder implements VideoDecoder {
       180 => 'hflip,vflip',
       270 => 'transpose=cclock',
       _ => throw ArgumentError.value(
-        configuration.rotationDegrees,
-        'rotationDegrees',
-      ),
+          configuration.rotationDegrees,
+          'rotationDegrees',
+        ),
     };
     if (rotationFilter != null) {
       arguments.addAll(<String>['-vf', rotationFilter]);
     }
-
     return arguments;
   }
 
   @override
-  Widget buildView() => _surface.toWidget();
+  Future<void> decode(EncodedVideoFrame frame) {
+    final Future<void> operation = _decodeTail.then(
+      (_) => _decodeFrame(frame),
+    );
+    // Keep the queue usable after an individual write fails, while returning
+    // the original error to the caller that submitted that frame.
+    _decodeTail = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
+    return operation;
+  }
 
-  @override
-  Future<void> decode(EncodedVideoFrame frame) async {
+  Future<void> _decodeFrame(EncodedVideoFrame frame) async {
     if (_disposed) {
       throw StateError('The FFmpeg video decoder has been disposed.');
     }
-    if (_playbackState.failure != null) {
-      throw StateError('FFplay failed: ${_playbackState.failure}');
+    if (!_started || _inputSocket == null) {
+      throw StateError('The FFmpeg video decoder has not been started.');
     }
-    if (_playbackState.ended) {
+
+    final _PlaybackState? playbackState = _playbackState;
+    if (playbackState?.failure != null) {
+      throw StateError('FFplay failed: ${playbackState!.failure}');
+    }
+    if (playbackState?.ended ?? false) {
       throw StateError('FFplay stopped while the remote stream was active.');
     }
 
@@ -279,37 +309,74 @@ class FfmpegVideoDecoder implements VideoDecoder {
 
     // Awaiting flush applies TCP backpressure. Combined with the media
     // subscription's bounded queue, this prevents unbounded Dart-side growth.
-    _inputSocket.add(frame.data);
-    await _inputSocket.flush();
+    final Socket inputSocket = _inputSocket!;
+    inputSocket.add(frame.data);
+    await inputSocket.flush();
   }
 
   @override
-  Future<void> dispose() {
-    return _disposeFuture ??= _disposeCore();
-  }
+  Future<void> dispose() => _disposeFuture ??= _disposeCore();
 
   Future<void> _disposeCore() async {
     _disposed = true;
+    if (!_disposeSignal.isCompleted) {
+      _disposeSignal.complete();
+    }
+
+    final Future<void>? startFuture = _startFuture;
+    if (startFuture != null) {
+      try {
+        await startFuture.timeout(_stopTimeout);
+      } catch (_) {
+        // Startup failure or cancellation is handled by resource cleanup below.
+      }
+    }
+
     try {
-      _inputSocket.destroy();
       try {
-        FFplayKit.cancel(_session);
+        await _decodeTail.timeout(_stopTimeout);
       } catch (_) {
-        // Continue releasing the remaining resources.
+        // Continue teardown if a socket write cannot drain during shutdown.
       }
-      try {
-        await _playbackState.completed.future.timeout(_stopTimeout);
-      } catch (_) {
-        // FFplay can already be terminal or may not acknowledge cancellation.
-      }
-      try {
-        _session.close();
-      } catch (_) {
-        // The output surface must still be released.
-      }
+      await _closePlaybackResources();
       await _surface.release();
     } finally {
       _decoderInUse = false;
+    }
+  }
+
+  Future<void> _closePlaybackResources() async {
+    final Socket? inputSocket = _inputSocket;
+    _inputSocket = null;
+    inputSocket?.destroy();
+
+    final ServerSocket? server = _server;
+    _server = null;
+    if (server != null) {
+      await server.close();
+    }
+
+    final FFplaySession? session = _session;
+    _session = null;
+    if (session != null) {
+      try {
+        FFplayKit.cancel(session);
+      } catch (_) {
+        // Continue releasing the remaining playback resources.
+      }
+      final _PlaybackState? playbackState = _playbackState;
+      if (playbackState != null) {
+        try {
+          await playbackState.completed.future.timeout(_stopTimeout);
+        } catch (_) {
+          // FFplay can already be terminal or may not acknowledge cancellation.
+        }
+      }
+      try {
+        session.close();
+      } catch (_) {
+        // The output surface must still be released.
+      }
     }
   }
 }

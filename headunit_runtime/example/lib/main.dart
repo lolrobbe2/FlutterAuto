@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
 
 import 'runtime_example_application.dart';
+import 'media_demo/remote_video_demo_controller.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +45,9 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
 
   Widget? _managedApplicationWidget;
   AudioService? _audioService;
+
+  RemoteVideoDemoController? _remoteVideoDemo;
+  bool _startingRemoteVideoDemo = false;
 
   AudioSession? _activeSession;
   AudioStream? _activeStream;
@@ -131,6 +135,189 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
     }
   }
 
+  Future<void> _startRemoteVideoDemo() async {
+    if (_startingRemoteVideoDemo ||
+        _remoteVideoDemo != null ||
+        _shuttingDown) {
+      return;
+    }
+
+    setState(() {
+      _startingRemoteVideoDemo = true;
+      _status = 'Starting authenticated H.264 media demo...';
+    });
+
+    RemoteVideoDemoController? demo;
+    try {
+      final RemoteVideoDemoController createdDemo =
+          await RemoteVideoDemoController.create();
+      demo = createdDemo;
+      if (!mounted) {
+        await createdDemo.dispose();
+        return;
+      }
+
+      setState(() {
+        _remoteVideoDemo = createdDemo;
+        _startingRemoteVideoDemo = false;
+        _status = 'H.264 sender connected. Starting FFplay decoder...';
+      });
+      // Mount the RemoteVideoSurface first. Its frame subscription is created
+      // during initState; it then mounts FFplaySurface before starting FFplay.
+      // The bounded receiver queue protects the brief setup interval.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted ||
+          _shuttingDown ||
+          !identical(_remoteVideoDemo, createdDemo)) {
+        await createdDemo.dispose();
+        return;
+      }
+      createdDemo.start();
+    } catch (error) {
+      await demo?.dispose();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _startingRemoteVideoDemo = false;
+        _status = 'Remote video demo failed: $error';
+      });
+    }
+  }
+
+  Future<void> _stopRemoteVideoDemo() async {
+    final RemoteVideoDemoController? demo = _remoteVideoDemo;
+    if (demo == null) {
+      return;
+    }
+
+    setState(() {
+      _remoteVideoDemo = null;
+      _status = 'Stopping remote video demo...';
+    });
+
+    // Unmount RemoteVideoSurface first so it releases FFplay's process-wide
+    // surface before the media connection is closed.
+    await WidgetsBinding.instance.endOfFrame;
+    await demo.dispose();
+
+    if (mounted) {
+      setState(() {
+        _status = 'Remote video demo stopped.';
+      });
+    }
+  }
+
+  void _handleRemoteVideoPointer(ApplicationPointerEvent event) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _status = 'Remote pointer ${event.phase.name}: '
+          '${(event.x * 100).toStringAsFixed(1)}%, '
+          '${(event.y * 100).toStringAsFixed(1)}%';
+    });
+  }
+
+  Widget _buildRemoteVideoDemoCard() {
+    final RemoteVideoDemoController? demo = _remoteVideoDemo;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Remote video Â· FFmpegKit',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'A synthetic H.264 application stream sent through the '
+              'authenticated media transport and rendered by FFplay.',
+            ),
+            const SizedBox(height: 12),
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: ColoredBox(
+                color: const Color(0xFF101820),
+                child: demo == null
+                    ? const Center(
+                        child: Text('Start the demo to display remote video'),
+                      )
+                    : RemoteVideoSurface(
+                        connection: demo.connection,
+                        onPointerEvent: _handleRemoteVideoPointer,
+                        loading: const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                        errorBuilder: (BuildContext context, Object error) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(
+                                'FFplay could not display the stream:\n$error',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+            if (demo != null) ...[
+              const SizedBox(height: 8),
+              ValueListenableBuilder<int>(
+                valueListenable: demo.framesSent,
+                builder: (BuildContext context, int count, Widget? child) {
+                  return Text('Access units sent: $count');
+                },
+              ),
+              ValueListenableBuilder<Object?>(
+                valueListenable: demo.error,
+                builder: (BuildContext context, Object? error, Widget? child) {
+                  if (error == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return Text('Sender error: $error');
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: demo != null ||
+                          _startingRemoteVideoDemo ||
+                          _shuttingDown
+                      ? null
+                      : _startRemoteVideoDemo,
+                  icon: _startingRemoteVideoDemo
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.play_arrow),
+                  label: Text(
+                    _startingRemoteVideoDemo ? 'Starting...' : 'Start video demo',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: demo == null ? null : _stopRemoteVideoDemo,
+                  icon: const Icon(Icons.stop),
+                  label: const Text('Stop video demo'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   void _createSession() {
     final AudioService? audioService = _audioService;
 
@@ -311,6 +498,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
     });
 
     try {
+      await _stopRemoteVideoDemo();
       await _runtime.dispose();
 
       if (!mounted) {
@@ -363,6 +551,11 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
 
   @override
   void dispose() {
+    final RemoteVideoDemoController? demo = _remoteVideoDemo;
+    _remoteVideoDemo = null;
+    if (demo != null) {
+      unawaited(demo.dispose());
+    }
     unawaited(_runtime.dispose());
     super.dispose();
   }
@@ -392,6 +585,8 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
           _buildRuntimeCard(),
           const SizedBox(height: 16),
           _buildManagedApplicationCard(),
+          const SizedBox(height: 16),
+          _buildRemoteVideoDemoCard(),
           const SizedBox(height: 16),
           _buildServiceCard(sessionCount),
           const SizedBox(height: 16),

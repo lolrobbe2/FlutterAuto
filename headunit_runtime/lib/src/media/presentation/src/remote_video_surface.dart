@@ -70,10 +70,25 @@ class _RemoteVideoSurfaceState extends State<RemoteVideoSurface> {
         subscription.cancel();
         return;
       }
+
+      // The player must not start until its Flutter surface is mounted. In
+      // particular, FFplaySurface creates platform output resources that are
+      // attached when buildView() enters the widget tree.
       _decoder = decoder;
       setState(() {
         _loading = false;
       });
+      await WidgetsBinding.instance.endOfFrame;
+
+      if (!_isCurrent(generation) || !identical(_decoder, decoder)) {
+        await decoder.dispose();
+        subscription.cancel();
+        return;
+      }
+
+      if (decoder is StartableVideoDecoder) {
+        await decoder.start();
+      }
       await _consumeFrames(subscription, decoder, generation);
     } catch (error) {
       if (decoder != null) {
@@ -165,7 +180,6 @@ class _RemoteVideoSurfaceState extends State<RemoteVideoSurface> {
               .clamp(0.0, 1.0)
               .toDouble()
         : null;
-
     widget.onPointerEvent(
       ApplicationPointerEvent(
         pointerId: event.pointer,
@@ -184,7 +198,6 @@ class _RemoteVideoSurfaceState extends State<RemoteVideoSurface> {
       return widget.errorBuilder?.call(context, error) ??
           Center(child: Text('Unable to display application: $error'));
     }
-
     if (_loading || _decoder == null) {
       return widget.loading ?? const Center(child: SizedBox.shrink());
     }
@@ -197,7 +210,6 @@ class _RemoteVideoSurfaceState extends State<RemoteVideoSurface> {
     final double aspectRatio = quarterTurn
         ? configuration.height / configuration.width
         : configuration.width / configuration.height;
-
     return Center(
       child: AspectRatio(
         aspectRatio: aspectRatio,

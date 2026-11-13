@@ -4,12 +4,25 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
 
-class _FakeVideoDecoder implements VideoDecoder {
-  @override
-  Widget buildView() => const Texture(textureId: 42);
-
+class _FakeVideoDecoder implements VideoDecoder, StartableVideoDecoder {
   final List<EncodedVideoFrame> decodedFrames = <EncodedVideoFrame>[];
+  bool viewBuilt = false;
+  bool started = false;
   bool disposed = false;
+
+  @override
+  Widget buildView() {
+    viewBuilt = true;
+    return const Texture(textureId: 42);
+  }
+
+  @override
+  Future<void> start() async {
+    if (!viewBuilt) {
+      throw StateError('The video surface must be mounted before start().');
+    }
+    started = true;
+  }
 
   @override
   Future<void> decode(EncodedVideoFrame frame) async {
@@ -25,7 +38,7 @@ class _FakeVideoDecoder implements VideoDecoder {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('renders a texture and forwards normalized pointer input', (
+  testWidgets('mounts the surface before starting and forwards pointer input', (
     WidgetTester tester,
   ) async {
     const String token = '0123456789abcdef0123456789abcdef';
@@ -69,8 +82,9 @@ void main() {
       ),
     );
     await tester.pump();
-
+    await tester.pump();
     expect(find.byType(Texture), findsOneWidget);
+    expect(decoder.started, isTrue);
 
     final TestGesture gesture = await tester.startGesture(
       const Offset(50, 30),
@@ -98,7 +112,7 @@ void main() {
     });
   });
 
-  testWidgets('passes encoded access units to the decoder', (
+  testWidgets('passes encoded access units to the started decoder', (
     WidgetTester tester,
   ) async {
     const String token = 'abcdef0123456789abcdef0123456789';
@@ -136,6 +150,8 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pump();
+    expect(decoder.started, isTrue);
 
     await tester.runAsync(() async {
       await client!.sendFrame(
