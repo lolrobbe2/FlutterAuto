@@ -1,0 +1,21 @@
+name: headunit_media_flutter
+description: Flutter presentation widgets for FlutterAuto remote application video.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.13.4
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  headunit_contracts:
+    path: ../headunit_contracts
+  headunit_media:
+    path: ../headunit_media
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

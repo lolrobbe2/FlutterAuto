@@ -4,3 +4,5 @@ headunit_ipc/.dart_tool/**
 headunit_ipc/build/**
 headunit_media/.dart_tool/**
 headunit_media/build/**
+headunit_media_flutter/.dart_tool/**
+headunit_media_flutter/build/**

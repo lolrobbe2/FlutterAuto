@@ -8,8 +8,7 @@ import 'encoded_video_frame.dart';
 class VideoFrameQueue {
   final int capacity;
   final Queue<EncodedVideoFrame> _frames = Queue<EncodedVideoFrame>();
-  final Queue<Completer<EncodedVideoFrame?>> _waiters =
-      Queue<Completer<EncodedVideoFrame?>>();
+  final Queue<_FrameWaiter> _waiters = Queue<_FrameWaiter>();
   final StreamController<void> _keyFrameRequests =
       StreamController<void>.broadcast(sync: true);
 
@@ -53,24 +52,48 @@ class VideoFrameQueue {
 
     _awaitingKeyFrame = false;
     if (_waiters.isNotEmpty) {
-      _waiters.removeFirst().complete(frame);
+      _waiters.removeFirst().completer.complete(frame);
     } else {
       _frames.addLast(frame);
     }
     return false;
   }
 
-  Future<EncodedVideoFrame?> nextFrame() {
+  Future<EncodedVideoFrame?> nextFrame({Object? owner}) {
     if (_frames.isNotEmpty) {
       return Future<EncodedVideoFrame?>.value(_frames.removeFirst());
     }
     if (_closed) {
       return Future<EncodedVideoFrame?>.value(null);
     }
-    final Completer<EncodedVideoFrame?> waiter =
+    final Completer<EncodedVideoFrame?> completer =
         Completer<EncodedVideoFrame?>();
-    _waiters.addLast(waiter);
-    return waiter.future;
+    _waiters.addLast(_FrameWaiter(owner: owner, completer: completer));
+    return completer.future;
+  }
+
+  /// Cancels a pending read and forces the next reader to start at a keyframe.
+  void cancelReader(Object owner) {
+    if (_waiters.isNotEmpty) {
+      final Queue<_FrameWaiter> retained = Queue<_FrameWaiter>();
+      while (_waiters.isNotEmpty) {
+        final _FrameWaiter waiter = _waiters.removeFirst();
+        if (identical(waiter.owner, owner)) {
+          if (!waiter.completer.isCompleted) {
+            waiter.completer.complete(null);
+          }
+        } else {
+          retained.addLast(waiter);
+        }
+      }
+      _waiters.addAll(retained);
+    }
+
+    // A new decoder cannot continue from the old decoder's reference frames.
+    _droppedFrames += _frames.length;
+    _frames.clear();
+    _awaitingKeyFrame = true;
+    _requestKeyFrame();
   }
 
   void _requestKeyFrame() {
@@ -86,8 +109,18 @@ class VideoFrameQueue {
     _closed = true;
     _frames.clear();
     while (_waiters.isNotEmpty) {
-      _waiters.removeFirst().complete(null);
+      final _FrameWaiter waiter = _waiters.removeFirst();
+      if (!waiter.completer.isCompleted) {
+        waiter.completer.complete(null);
+      }
     }
     await _keyFrameRequests.close();
   }
+}
+
+class _FrameWaiter {
+  final Object? owner;
+  final Completer<EncodedVideoFrame?> completer;
+
+  const _FrameWaiter({required this.owner, required this.completer});
 }

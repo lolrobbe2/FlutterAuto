@@ -8,6 +8,8 @@ import 'encoded_video_frame.dart';
 import 'media_stream_configuration.dart';
 import 'media_transport_exception.dart';
 
+part 'media_frame_subscription.dart';
+
 /// Host-side receiver for one external application's encoded video stream.
 class MediaStreamConnection {
   final MediaSocketChannel _channel;
@@ -21,12 +23,8 @@ class MediaStreamConnection {
   int _lastSequence = -1;
   int _lastPresentationTime = -1;
   Future<void>? _readLoop;
+  MediaFrameSubscription? _frameSubscription;
 
-  /// Creates a connection from an already-authenticated media channel.
-  ///
-  /// This constructor is intended for package-internal use by LocalMediaServer.
-  /// Applications should obtain connections from the server rather than
-  /// constructing them.
   MediaStreamConnection.fromAuthenticatedChannel({
     required MediaSocketChannel channel,
     required this.configuration,
@@ -45,7 +43,33 @@ class MediaStreamConnection {
   int get droppedFrames => _frameQueue.droppedFrames;
 
   /// Waits for the next decodable access unit. Returns null on disconnect.
+  ///
+  /// Prefer [createFrameSubscription] when the consumer has a shorter
+  /// lifecycle than this connection (for example, a Flutter surface widget).
   Future<EncodedVideoFrame?> nextFrame() => _frameQueue.nextFrame();
+
+  /// Creates the single cancellable frame reader for this connection.
+  ///
+  /// A connection represents one video stream and therefore has one consumer.
+  /// The subscription can be cancelled without closing the connection.
+  MediaFrameSubscription createFrameSubscription() {
+    final MediaFrameSubscription? existing = _frameSubscription;
+    if (existing != null && !existing.isCancelled) {
+      throw StateError('A frame subscription is already active.');
+    }
+
+    late final MediaFrameSubscription subscription;
+    subscription = MediaFrameSubscription._(
+      queue: _frameQueue,
+      onCancel: (MediaFrameSubscription cancelled) {
+        if (identical(_frameSubscription, cancelled)) {
+          _frameSubscription = null;
+        }
+      },
+    );
+    _frameSubscription = subscription;
+    return subscription;
+  }
 
   void start() {
     // The SDK requires an IDR as its first frame. A keyframe request is sent
