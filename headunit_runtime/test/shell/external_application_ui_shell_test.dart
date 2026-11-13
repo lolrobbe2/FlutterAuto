@@ -95,11 +95,19 @@ void main() {
           ),
         );
 
-        final ApplicationInstance? launched = await tester.runAsync(
-          () => runtime.applicationManager
-              .launch(applicationId)
-              .timeout(const Duration(seconds: 8)),
-        );
+        ApplicationInstance? launched;
+
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+        try {
+          launched = await tester.runAsync(
+            () => runtime.applicationManager
+                .launch(applicationId)
+                .timeout(const Duration(seconds: 8)),
+          );
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+
         expect(launched, isA<ExternalFlutterApplicationInstance>());
         expect(processLauncher.connection, isNotNull);
 
