@@ -6,3 +6,5 @@ headunit_media/.dart_tool/**
 headunit_media/build/**
 headunit_media_flutter/.dart_tool/**
 headunit_media_flutter/build/**
+**/.dart_tool/**
+**/build/**
