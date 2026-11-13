@@ -6,6 +6,8 @@ import 'package:headunit_shared/headunit_shared_io.dart';
 
 import '../services/remote_service_adapter.dart';
 
+import 'remote_application_ui_channel.dart';
+
 /// Connection details a platform launcher passes to the external application.
 /// The token is single-session and must be delivered through the platform's
 /// protected process-bootstrap mechanism.
@@ -37,6 +39,7 @@ class RemoteApplicationRpcSession {
   final String _token;
   final Completer<void> _authenticationCompleter = Completer<void>();
   final Set<ServiceId> _eventSubscriptions = <ServiceId>{};
+  final RemoteApplicationUiChannel uiChannel = RemoteApplicationUiChannel();
 
   StreamSubscription<RpcConnection>? _connectionSubscription;
   RpcConnection? _connection;
@@ -161,6 +164,10 @@ class RemoteApplicationRpcSession {
     connection.registerRequestHandler(
       'service.unsubscribe',
       _unsubscribeService,
+    );
+    uiChannel.attach(
+      connection,
+      isAuthenticated: () => _authenticated,
     );
   }
 
@@ -311,6 +318,11 @@ class RemoteApplicationRpcSession {
     _sendNotification('input.pointer', event.toJson());
   }
 
+  /// Sends an action invocation to the currently published UI page.
+  void sendUiAction(String actionId) {
+    uiChannel.sendAction(actionId);
+  }
+
   /// Sends a low-volume, application-specific input event.
   ///
   /// This channel is for control input, not media frames.
@@ -388,6 +400,7 @@ class RemoteApplicationRpcSession {
     _authenticationTimer = null;
     _eventSubscriptions.clear();
     await _connectionSubscription?.cancel();
+    await uiChannel.dispose();
     await _server.close();
     await _mediaServer.close();
     _connection = null;

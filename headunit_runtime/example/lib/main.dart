@@ -94,48 +94,6 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
           applicationManager: _runtime.applicationManager,
           homeBuilder: (BuildContext context) =>
               const Center(child: Text('Headunit home')),
-          applicationBuilder:
-              (BuildContext context, ApplicationInstance instance) {
-                if (instance is ExternalFlutterApplicationInstance) {
-                  return ValueListenableBuilder<MediaStreamConnection?>(
-                    valueListenable: instance.mediaConnection,
-                    builder:
-                        (
-                          BuildContext context,
-                          MediaStreamConnection? connection,
-                          Widget? child,
-                        ) {
-                          if (connection == null) {
-                            return const Center(
-                              child: Text(
-                                'Waiting for external application media...',
-                              ),
-                            );
-                          }
-                          return ColoredBox(
-                            color: const Color(0xFF101820),
-                            child: RemoteVideoSurface(
-                              connection: connection,
-                              onPointerEvent: (ApplicationPointerEvent event) {
-                                instance.sendPointerEvent(event);
-                                _handleRemoteVideoPointer(event);
-                              },
-                            ),
-                          );
-                        },
-                  );
-                }
-
-                if (instance is FlutterApplicationInstance) {
-                  return instance.widget;
-                }
-
-                return const Center(
-                  child: Text(
-                    'No renderer is registered for this application.',
-                  ),
-                );
-              },
         ),
       ),
     );

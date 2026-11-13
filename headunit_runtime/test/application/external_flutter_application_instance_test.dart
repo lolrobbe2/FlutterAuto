@@ -38,16 +38,18 @@ void main() {
       );
       final FlutterApplicationPackageManifest packageManifest =
           FlutterApplicationPackageManifest(
-        application: manifest,
-        targets: <FlutterApplicationTarget>[target],
-      );
+            application: manifest,
+            targets: <FlutterApplicationTarget>[target],
+          );
       final Directory directory = Directory.systemTemp;
       final InstalledFlutterApplication installed = InstalledFlutterApplication(
         packageManifest: packageManifest,
         target: target,
         applicationDirectory: directory,
         bundleDirectory: directory,
-        entryPoint: File('${directory.path}${Platform.pathSeparator}example.exe'),
+        entryPoint: File(
+          '${directory.path}${Platform.pathSeparator}example.exe',
+        ),
       );
 
       instance = ExternalFlutterApplicationInstance(
@@ -66,44 +68,79 @@ void main() {
       registry.dispose();
     });
 
-    test('starts after authenticated control and media connections', () async {
-      await instance.start();
+    test(
+      'starts after authentication without requiring a media connection',
+      () async {
+        await instance.start();
 
-      expect(instance.state, ApplicationLifecycleState.background);
-      expect(instance.processId, 4242);
-      expect(instance.mediaConnection.value, isNotNull);
-      expect(launcher.connection, isNotNull);
-    });
+        expect(instance.state, ApplicationLifecycleState.background);
+        expect(instance.processId, 4242);
+        expect(instance.mediaConnection.value, isNull);
+        expect(launcher.connection, isNotNull);
+      },
+    );
 
-    test('forwards pointer events over the authenticated SDK connection', () async {
-      await instance.start();
-      final Future<ApplicationPointerEvent> received =
-          launcher.connection!.pointerEvents.first;
+    test(
+      'exposes UI pages and routes their actions through the shell',
+      () async {
+        await instance.start();
+        final Completer<void> actionInvoked = Completer<void>();
+        await launcher.connection!.ui.showPage(
+          HeadunitUiPage(
+            title: 'Shell page',
+            body: HeadunitUiButton(
+              label: 'Activate',
+              action: HeadunitUiAction(
+                id: 'test.activate',
+                onInvoke: () {
+                  if (!actionInvoked.isCompleted) actionInvoked.complete();
+                },
+              ),
+            ),
+          ),
+        );
+        expect(instance.uiPage.value?.title, 'Shell page');
+        instance.sendUiAction('test.activate');
+        await actionInvoked.future.timeout(const Duration(seconds: 2));
+        expect(actionInvoked.isCompleted, isTrue);
+      },
+    );
 
-      instance.sendPointerEvent(
-        ApplicationPointerEvent(
-          pointerId: 4,
-          phase: ApplicationPointerPhase.down,
-          x: 0.2,
-          y: 0.8,
-        ),
-      );
+    test(
+      'forwards pointer events over the authenticated SDK connection',
+      () async {
+        await instance.start();
+        final Future<ApplicationPointerEvent> received =
+            launcher.connection!.pointerEvents.first;
 
-      final ApplicationPointerEvent event = await received;
-      expect(event.pointerId, 4);
-      expect(event.phase, ApplicationPointerPhase.down);
-      expect(event.x, 0.2);
-      expect(event.y, 0.8);
-    });
+        instance.sendPointerEvent(
+          ApplicationPointerEvent(
+            pointerId: 4,
+            phase: ApplicationPointerPhase.down,
+            x: 0.2,
+            y: 0.8,
+          ),
+        );
 
-    test('transitions to stopped and closes the child process on stop', () async {
-      await instance.start();
-      await instance.stop();
+        final ApplicationPointerEvent event = await received;
+        expect(event.pointerId, 4);
+        expect(event.phase, ApplicationPointerPhase.down);
+        expect(event.x, 0.2);
+        expect(event.y, 0.8);
+      },
+    );
 
-      expect(instance.state, ApplicationLifecycleState.stopped);
-      expect(instance.isProcessRunning, isFalse);
-      expect(instance.mediaConnection.value, isNull);
-    });
+    test(
+      'transitions to stopped and closes the child process on stop',
+      () async {
+        await instance.start();
+        await instance.stop();
+
+        expect(instance.state, ApplicationLifecycleState.stopped);
+        expect(instance.isProcessRunning, isFalse);
+        expect(instance.mediaConnection.value, isNull);
+      },
+    );
 
     test('reports an unexpected child process exit as failed', () async {
       await instance.start();
@@ -140,7 +177,6 @@ class _FakeProcessLauncher implements ApplicationProcessLauncher {
       mediaPort: endpoint.mediaPort,
       token: endpoint.token,
     );
-    await connected.openMediaStream();
 
     final _FakeProcessHandle handle = _FakeProcessHandle();
     handle.attach(connected);

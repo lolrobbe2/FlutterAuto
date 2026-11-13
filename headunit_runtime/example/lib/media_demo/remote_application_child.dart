@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:headunit_sdk/headunit_sdk.dart';
 
 import 'h264_annex_b_parser.dart';
 import 'remote_demo_service.dart';
+import '../reference_headunit/reference_music_ui_demo.dart';
 
 /// Entry point used when the same Windows bundle is launched as an external
 /// application by the headunit. The parent sends its session endpoint through
@@ -49,6 +49,10 @@ class RemoteApplicationChildProcess {
         RemoteDemoService.key,
       );
       final String serviceStatus = await demoService.getStatus();
+      stderr.writeln('Remote service: $serviceStatus');
+
+      final ReferenceMusicUiDemo uiDemo = ReferenceMusicUiDemo(connection.ui);
+      await uiDemo.publish();
 
       final _RemoteH264Sender sender = _RemoteH264Sender(
         client: media,
@@ -69,22 +73,17 @@ class RemoteApplicationChildProcess {
         exit(0);
       }
 
-      lifecycleSubscription = connection.notifications.listen(
-        (HeadunitHostEvent event) {
-          if (event.method == 'application.lifecycle' &&
-              event.parameters['state'] == 'stopping') {
-            unawaited(shutdown());
-          }
-        },
-        onDone: () => unawaited(shutdown()),
-      );
+      lifecycleSubscription = connection.notifications.listen((
+        HeadunitHostEvent event,
+      ) {
+        if (event.method == 'application.lifecycle' &&
+            event.parameters['state'] == 'stopping') {
+          unawaited(shutdown());
+        }
+      }, onDone: () => unawaited(shutdown()));
 
-      runApp(
-        _RemoteApplicationChildApp(
-          connection: connection,
-          serviceStatus: serviceStatus,
-        ),
-      );
+      // The shell owns the visible Flutter widgets. This process only
+      // publishes its semantic UI and optional media stream.
       sender.start();
     } catch (_) {
       await connection.close();
@@ -214,59 +213,5 @@ class _RemoteH264Sender {
     _running = false;
     await _sendTask;
     // HeadunitConnection owns and closes this media client.
-  }
-}
-
-class _RemoteApplicationChildApp extends StatelessWidget {
-  final HeadunitConnection connection;
-  final String serviceStatus;
-
-  const _RemoteApplicationChildApp({
-    required this.connection,
-    required this.serviceStatus,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'External Flutter Application',
-      theme: ThemeData.dark(useMaterial3: true),
-      home: Scaffold(
-        appBar: AppBar(title: const Text('External Flutter application')),
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('Application: ${connection.applicationId.value}'),
-              const SizedBox(height: 8),
-              const Text('Process: separate Flutter engine / OS process'),
-              const SizedBox(height: 8),
-              Text('SDK service: $serviceStatus'),
-              const SizedBox(height: 24),
-              const Text('Last touch event received from the headunit:'),
-              const SizedBox(height: 8),
-              StreamBuilder<ApplicationPointerEvent>(
-                stream: connection.pointerEvents,
-                builder: (
-                  BuildContext context,
-                  AsyncSnapshot<ApplicationPointerEvent> snapshot,
-                ) {
-                  final ApplicationPointerEvent? event = snapshot.data;
-                  if (event == null) {
-                    return const Text('Waiting for touch input...');
-                  }
-                  return Text(
-                    '${event.phase.name} · pointer ${event.pointerId} · '
-                    'x=${event.x.toStringAsFixed(3)} · '
-                    'y=${event.y.toStringAsFixed(3)}',
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

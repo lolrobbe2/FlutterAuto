@@ -10,6 +10,8 @@ export 'src/application/remote_application_rpc_session.dart';
 
 export 'src/services/remote_service_adapter.dart';
 export 'src/shell/headunit_shell.dart';
+export 'src/ui/headunit_ui_renderer.dart';
+export 'src/ui/headunit_ui_theme.dart';
 
 // Preserve the existing public .happ package APIs.
 export 'src/application/flutter_application_package_reader.dart';

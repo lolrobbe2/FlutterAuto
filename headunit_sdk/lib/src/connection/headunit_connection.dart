@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:headunit_shared/headunit_shared_io.dart';
 
+import '../ui/headunit_ui_controller.dart';
+
 /// Authenticated connection from an external application to its headunit.
 ///
 /// Use this instead of depending on runtime implementation classes. The
@@ -20,6 +22,7 @@ class HeadunitConnection {
   Future<MediaStreamClient>? _mediaOpening;
 
   late final HeadunitServiceClient services = HeadunitServiceClient(_rpc);
+  late final HeadunitUiController ui = HeadunitUiController(_rpc);
 
   HeadunitConnection._({
     required this._rpc,
@@ -183,7 +186,11 @@ class HeadunitConnection {
         await client?.close();
       }
     } finally {
-      await _rpc.close();
+      try {
+        await ui.dispose();
+      } finally {
+        await _rpc.close();
+      }
     }
   }
 
@@ -290,8 +297,9 @@ class HeadunitServiceClient {
       return pending;
     }
 
-    final Future<RemoteServiceHandle> acquisition =
-        _acquireHandleInternal(serviceId);
+    final Future<RemoteServiceHandle> acquisition = _acquireHandleInternal(
+      serviceId,
+    );
     _pendingAcquisitions[serviceId] = acquisition;
     try {
       return await acquisition;
@@ -343,10 +351,7 @@ final class RemoteServiceKey<T extends Object> {
   final ServiceId serviceId;
   final T Function(RemoteServiceHandle handle) create;
 
-  const RemoteServiceKey({
-    required this.serviceId,
-    required this.create,
-  });
+  const RemoteServiceKey({required this.serviceId, required this.create});
 }
 
 class RemoteServiceEvent {

@@ -3,7 +3,9 @@ import 'package:headunit_shared/headunit_shared_io.dart';
 
 import '../application/application_manager.dart';
 import '../application/application_manager_event.dart';
+import '../application/external_flutter_application_instance.dart';
 import '../application/flutter_application_instance.dart';
+import '../ui/headunit_ui_renderer.dart';
 
 typedef HeadunitShellLayoutBuilder = Widget Function(
   BuildContext context,
@@ -15,13 +17,16 @@ typedef HeadunitApplicationSurfaceBuilder = Widget Function(
   ApplicationInstance instance,
 );
 
+/// The shell that hosts the home screen and foreground application surfaces.
+///
+/// In-process Flutter applications retain their existing widget surface.
+/// External applications use the standard declarative UI renderer by default;
+/// hosts can still override [applicationBuilder] for an explicit custom surface
+/// such as a video/map renderer.
 class HeadunitShell extends StatelessWidget {
   final ApplicationManager applicationManager;
-
   final WidgetBuilder homeBuilder;
-
   final HeadunitShellLayoutBuilder? layoutBuilder;
-
   final HeadunitApplicationSurfaceBuilder? applicationBuilder;
 
   const HeadunitShell({
@@ -43,7 +48,6 @@ class HeadunitShell extends StatelessWidget {
           ) {
             final ApplicationId? foregroundId =
                 applicationManager.foregroundApplicationId;
-
             final List<MapEntry<ApplicationId, ApplicationInstance>>
             instances = applicationManager.runningApplications.entries
                 .where((MapEntry<ApplicationId, ApplicationInstance> entry) {
@@ -52,10 +56,9 @@ class HeadunitShell extends StatelessWidget {
                       entry.value.state == ApplicationLifecycleState.background;
                 })
                 .toList(growable: false);
-            // Index zero is always the home screen.
-            int activeIndex = 0;
 
-            final List<Widget> children = [
+            int activeIndex = 0;
+            final List<Widget> children = <Widget>[
               KeyedSubtree(
                 key: const ValueKey<String>('headunit-home'),
                 child: homeBuilder(context),
@@ -65,11 +68,7 @@ class HeadunitShell extends StatelessWidget {
             for (int index = 0; index < instances.length; index++) {
               final MapEntry<ApplicationId, ApplicationInstance> entry =
                   instances[index];
-
-              if (entry.key == foregroundId) {
-                activeIndex = index + 1;
-              }
-
+              if (entry.key == foregroundId) activeIndex = index + 1;
               children.add(
                 KeyedSubtree(
                   key: ValueKey<ApplicationId>(entry.key),
@@ -86,7 +85,6 @@ class HeadunitShell extends StatelessWidget {
               sizing: StackFit.expand,
               children: children,
             );
-
             return layoutBuilder?.call(context, applicationSurface) ??
                 applicationSurface;
           },
@@ -97,17 +95,20 @@ class HeadunitShell extends StatelessWidget {
     BuildContext context,
     ApplicationInstance instance,
   ) {
-    if (applicationBuilder != null) {
-      return applicationBuilder!(context, instance);
-    }
+    final HeadunitApplicationSurfaceBuilder? customBuilder = applicationBuilder;
+    if (customBuilder != null) return customBuilder(context, instance);
 
-    if (instance is FlutterApplicationInstance) {
-      return instance.widget;
+    if (instance is FlutterApplicationInstance) return instance.widget;
+
+    if (instance is ExternalFlutterApplicationInstance) {
+      return HeadunitUiSurface(
+        page: instance.uiPage,
+        onAction: instance.sendUiAction,
+      );
     }
 
     throw UnsupportedError(
-      'No application surface renderer registered for '
-      '${instance.runtimeType}.',
+      'No application surface renderer registered for ${instance.runtimeType}.',
     );
   }
 }

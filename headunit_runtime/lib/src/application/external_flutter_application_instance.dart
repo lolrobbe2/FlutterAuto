@@ -28,13 +28,15 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
       StreamController<ApplicationLifecycleEvent>.broadcast();
   final ValueNotifier<MediaStreamConnection?> _mediaConnection =
       ValueNotifier<MediaStreamConnection?>(null);
-  final Completer<MediaStreamConnection> _firstMediaConnection =
-      Completer<MediaStreamConnection>();
+  final ValueNotifier<HeadunitUiPage?> _uiPage = ValueNotifier<HeadunitUiPage?>(
+    null,
+  );
 
   ApplicationLifecycleState _state = ApplicationLifecycleState.stopped;
   RemoteApplicationRpcSession? _session;
   ApplicationProcessHandle? _process;
   StreamSubscription<MediaStreamConnection>? _mediaSubscription;
+  StreamSubscription<HeadunitUiPage?>? _uiSubscription;
   StreamSubscription<String>? _stdoutSubscription;
   StreamSubscription<String>? _stderrSubscription;
   Future<void>? _releaseFuture;
@@ -83,6 +85,9 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
   ValueListenable<MediaStreamConnection?> get mediaConnection =>
       _mediaConnection;
 
+  /// Current standard UI page published by the external process.
+  ValueListenable<HeadunitUiPage?> get uiPage => _uiPage;
+
   int? get processId => _process?.pid;
 
   bool get isProcessRunning => _process != null;
@@ -98,27 +103,33 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
     try {
       final RemoteApplicationRpcSession session =
           await RemoteApplicationRpcSession.bind(
-        context: _context,
-        serviceBroker: _serviceBroker,
-        mediaConfiguration: _mediaConfiguration,
-      );
+            context: _context,
+            serviceBroker: _serviceBroker,
+            mediaConfiguration: _mediaConfiguration,
+          );
       _session = session;
 
       // Subscribe before launching the child so its first media connection
       // cannot be missed.
-      _mediaSubscription = session.mediaConnections.listen(
-        (MediaStreamConnection connection) {
-          if (_state == ApplicationLifecycleState.stopping ||
-              _state == ApplicationLifecycleState.stopped ||
-              _state == ApplicationLifecycleState.failed) {
-            return;
-          }
-          _mediaConnection.value = connection;
-          if (!_firstMediaConnection.isCompleted) {
-            _firstMediaConnection.complete(connection);
-          }
-        },
-      );
+      _mediaSubscription = session.mediaConnections.listen((
+        MediaStreamConnection connection,
+      ) {
+        if (_state == ApplicationLifecycleState.stopping ||
+            _state == ApplicationLifecycleState.stopped ||
+            _state == ApplicationLifecycleState.failed) {
+          return;
+        }
+        _mediaConnection.value = connection;
+      });
+
+      _uiSubscription = session.uiChannel.pages.listen((HeadunitUiPage? page) {
+        if (_state != ApplicationLifecycleState.stopping &&
+            _state != ApplicationLifecycleState.stopped &&
+            _state != ApplicationLifecycleState.failed) {
+          _uiPage.value = page;
+        }
+      });
+      _uiPage.value = session.uiChannel.currentPage;
 
       final ApplicationProcessHandle process = await _processLauncher.launch(
         application: _installedApplication,
@@ -145,17 +156,12 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
 
       unawaited(_monitorProcess(process));
 
-      final Future<void> ready = Future.wait<void>(<Future<void>>[
-        session.waitUntilAuthenticated(timeout: _startupTimeout),
-        _firstMediaConnection.future.then<void>((MediaStreamConnection _) {}),
-      ]);
-
       await Future.any<void>(<Future<void>>[
-        ready,
+        session.waitUntilAuthenticated(timeout: _startupTimeout),
         process.exitCode.then<void>((int code) {
           throw StateError(
             'External application $id exited with code $code before '
-            'opening its control and media connections.',
+            'authenticating its control connection.',
           );
         }),
       ]).timeout(_startupTimeout);
@@ -168,10 +174,7 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
       _transition(ApplicationLifecycleState.background);
     } catch (error) {
       if (_state.canTransitionTo(ApplicationLifecycleState.failed)) {
-        _transition(
-          ApplicationLifecycleState.failed,
-          reason: error.toString(),
-        );
+        _transition(ApplicationLifecycleState.failed, reason: error.toString());
       }
 
       final ApplicationProcessHandle? process = _process;
@@ -230,6 +233,9 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
     await _mediaSubscription?.cancel();
     _mediaSubscription = null;
     _mediaConnection.value = null;
+    await _uiSubscription?.cancel();
+    _uiSubscription = null;
+    _uiPage.value = null;
 
     await _stdoutSubscription?.cancel();
     _stdoutSubscription = null;
@@ -243,6 +249,11 @@ class ExternalFlutterApplicationInstance implements ApplicationInstance {
 
   void sendPointerEvent(ApplicationPointerEvent event) {
     _session?.sendPointerEvent(event);
+  }
+
+  /// Invokes an action from the external application's current UI page.
+  void sendUiAction(String actionId) {
+    _session?.sendUiAction(actionId);
   }
 
   @override
