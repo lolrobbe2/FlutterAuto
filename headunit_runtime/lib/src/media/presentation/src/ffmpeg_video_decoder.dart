@@ -131,7 +131,8 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
       return;
     }
 
-    final ServerSocket server = _server ??
+    final ServerSocket server =
+        _server ??
         (throw StateError('The FFmpeg video input listener is unavailable.'));
     final Future<Socket> incomingSocket = server.first.timeout(
       _connectTimeout,
@@ -163,7 +164,9 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
       _session = session;
 
       if (_disposed) {
-        throw StateError('The FFmpeg video decoder was disposed during startup.');
+        throw StateError(
+          'The FFmpeg video decoder was disposed during startup.',
+        );
       }
 
       // Fail immediately if FFplay exits during startup instead of waiting for
@@ -180,13 +183,17 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
           );
         }),
         _disposeSignal.future.then<Socket>((_) {
-          throw StateError('The FFmpeg video decoder was disposed during startup.');
+          throw StateError(
+            'The FFmpeg video decoder was disposed during startup.',
+          );
         }),
       ]);
 
       if (_disposed) {
         socket.destroy();
-        throw StateError('The FFmpeg video decoder was disposed during startup.');
+        throw StateError(
+          'The FFmpeg video decoder was disposed during startup.',
+        );
       }
 
       await server.close();
@@ -251,9 +258,9 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
       180 => 'hflip,vflip',
       270 => 'transpose=cclock',
       _ => throw ArgumentError.value(
-          configuration.rotationDegrees,
-          'rotationDegrees',
-        ),
+        configuration.rotationDegrees,
+        'rotationDegrees',
+      ),
     };
     if (rotationFilter != null) {
       arguments.addAll(<String>['-vf', rotationFilter]);
@@ -263,9 +270,7 @@ class FfmpegVideoDecoder implements VideoDecoder, StartableVideoDecoder {
 
   @override
   Future<void> decode(EncodedVideoFrame frame) {
-    final Future<void> operation = _decodeTail.then(
-      (_) => _decodeFrame(frame),
-    );
+    final Future<void> operation = _decodeTail.then((_) => _decodeFrame(frame));
     // Keep the queue usable after an individual write fails, while returning
     // the original error to the caller that submitted that frame.
     _decodeTail = operation.then<void>(

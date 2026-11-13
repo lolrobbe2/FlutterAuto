@@ -20,10 +20,7 @@ class FlutterApplicationPackageException implements Exception {
   final String message;
   final Object? cause;
 
-  const FlutterApplicationPackageException(
-    this.message, {
-    this.cause,
-  });
+  const FlutterApplicationPackageException(this.message, {this.cause});
 
   @override
   String toString() {
@@ -142,8 +139,9 @@ class FlutterApplicationPackageReader {
         );
       }
 
-      final FlutterApplicationPackageManifest manifest =
-          _parseManifest(manifestBytes);
+      final FlutterApplicationPackageManifest manifest = _parseManifest(
+        manifestBytes,
+      );
 
       _validateManifestReferences(manifest, entries);
 
@@ -242,8 +240,7 @@ class FlutterApplicationPackageReader {
         }
       }
 
-      if (item.value.isFile &&
-          pathsWithDescendants.contains(item.key)) {
+      if (item.value.isFile && pathsWithDescendants.contains(item.key)) {
         throw FlutterApplicationPackageException(
           'An archive file cannot contain child entries: ${item.key}',
         );
@@ -299,16 +296,12 @@ class FlutterApplicationPackageReader {
     return path;
   }
 
-  FlutterApplicationPackageManifest _parseManifest(
-    List<int> bytes,
-  ) {
+  FlutterApplicationPackageManifest _parseManifest(List<int> bytes) {
     try {
       final Object? decoded = jsonDecode(utf8.decode(bytes));
 
       if (decoded is! Map) {
-        throw const FormatException(
-          'The manifest root must be a JSON object.',
-        );
+        throw const FormatException('The manifest root must be a JSON object.');
       }
 
       final Map<String, Object?> json = {};
@@ -344,16 +337,11 @@ class FlutterApplicationPackageReader {
     final String? iconPath = manifest.application.iconPath;
 
     if (iconPath != null) {
-      _requireFile(
-        entries,
-        iconPath,
-        'Application icon',
-      );
+      _requireFile(entries, iconPath, 'Application icon');
     }
 
     for (final FlutterApplicationTarget target in manifest.targets) {
-      final String executablePath =
-          '${target.bundlePath}/${target.entryPoint}';
+      final String executablePath = '${target.bundlePath}/${target.entryPoint}';
 
       _requireFile(
         entries,

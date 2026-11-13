@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -76,8 +75,7 @@ class RemoteVideoDemoController {
           .first
           .timeout(_connectionTimeout);
 
-      final MediaStreamClient connectedClient =
-          await MediaStreamClient.connect(
+      final MediaStreamClient connectedClient = await MediaStreamClient.connect(
         host: server.host,
         port: server.port,
         token: token,
@@ -90,7 +88,7 @@ class RemoteVideoDemoController {
         server: server,
         client: connectedClient,
         connection: connection,
-        _accessUnits: accessUnits,
+        accessUnits: accessUnits,
         configuration: _configuration,
       );
     } catch (_) {

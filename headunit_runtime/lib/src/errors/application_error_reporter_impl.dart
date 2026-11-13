@@ -9,13 +9,10 @@ class ApplicationErrorReporterImpl implements ApplicationErrorReporter {
 
   bool _isDisposed = false;
 
-  ApplicationErrorReporterImpl({
-    int maxHistorySize = 100,
-  })  : assert(maxHistorySize > 0),
-        _maxHistorySize = maxHistorySize,
-        _controller = StreamController<ApplicationError>.broadcast(
-          sync: true,
-        );
+  ApplicationErrorReporterImpl({int maxHistorySize = 100})
+    : assert(maxHistorySize > 0),
+      _maxHistorySize = maxHistorySize,
+      _controller = StreamController<ApplicationError>.broadcast(sync: true);
 
   @override
   Stream<ApplicationError> get errors => _controller.stream;

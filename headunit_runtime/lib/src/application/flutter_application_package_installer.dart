@@ -27,10 +27,7 @@ class FlutterApplicationInstallationException implements Exception {
   final String message;
   final Object? cause;
 
-  const FlutterApplicationInstallationException(
-    this.message, {
-    this.cause,
-  });
+  const FlutterApplicationInstallationException(this.message, {this.cause});
 
   @override
   String toString() {
@@ -45,9 +42,8 @@ class FlutterApplicationInstallationException implements Exception {
 class FlutterApplicationPackageInstaller {
   final FlutterApplicationPackageReader reader;
 
-  FlutterApplicationPackageInstaller({
-    FlutterApplicationPackageReader? reader,
-  }) : reader = reader ?? FlutterApplicationPackageReader();
+  FlutterApplicationPackageInstaller({FlutterApplicationPackageReader? reader})
+    : reader = reader ?? FlutterApplicationPackageReader();
 
   Future<InstalledFlutterApplication> install({
     required File packageFile,
@@ -55,8 +51,7 @@ class FlutterApplicationPackageInstaller {
     required FlutterApplicationPlatform platform,
     required String architecture,
   }) async {
-    final FileSystemEntityType sourceType =
-        await FileSystemEntity.type(
+    final FileSystemEntityType sourceType = await FileSystemEntity.type(
       packageFile.path,
       followLinks: false,
     );
@@ -79,8 +74,8 @@ class FlutterApplicationPackageInstaller {
 
     // Keep the archive snapshot and staging directory on the same
     // filesystem as the final installation directory.
-    final Directory transactionDirectory =
-        await applicationsDirectory.createTemp('.happ-install-');
+    final Directory transactionDirectory = await applicationsDirectory
+        .createTemp('.happ-install-');
 
     try {
       final File packageSnapshot = File(
@@ -91,11 +86,11 @@ class FlutterApplicationPackageInstaller {
 
       // Validate a private snapshot instead of trusting the source file
       // to remain unchanged throughout installation.
-      final FlutterApplicationPackage package =
-          await reader.read(packageSnapshot);
+      final FlutterApplicationPackage package = await reader.read(
+        packageSnapshot,
+      );
 
-      final FlutterApplicationTarget? target =
-          package.manifest.targetFor(
+      final FlutterApplicationTarget? target = package.manifest.targetFor(
         platform: platform,
         architecture: architecture,
       );
@@ -245,10 +240,7 @@ class FlutterApplicationPackageInstaller {
     }
   }
 
-  Future<void> _extractEntry(
-    ArchiveFile entry,
-    Directory destination,
-  ) async {
+  Future<void> _extractEntry(ArchiveFile entry, Directory destination) async {
     if (entry.isSymbolicLink) {
       throw FlutterApplicationInstallationException(
         'Symbolic links are not allowed: ${entry.name}',
@@ -258,10 +250,7 @@ class FlutterApplicationPackageInstaller {
     String relativePath = entry.name;
 
     if (relativePath.endsWith('/')) {
-      relativePath = relativePath.substring(
-        0,
-        relativePath.length - 1,
-      );
+      relativePath = relativePath.substring(0, relativePath.length - 1);
     }
 
     if (relativePath.isEmpty) {
@@ -270,10 +259,7 @@ class FlutterApplicationPackageInstaller {
 
     _validateRelativePath(relativePath);
 
-    final String outputPath = _join(
-      destination.path,
-      relativePath,
-    );
+    final String outputPath = _join(destination.path, relativePath);
 
     if (!entry.isFile) {
       await Directory(outputPath).create(recursive: true);
@@ -322,9 +308,6 @@ class FlutterApplicationPackageInstaller {
   String _join(String base, String relative) {
     final List<String> segments = relative.split('/');
 
-    return <String>[
-      base,
-      ...segments,
-    ].join(Platform.pathSeparator);
+    return <String>[base, ...segments].join(Platform.pathSeparator);
   }
 }

@@ -77,9 +77,7 @@ class RemoteApplicationRpcSession {
       );
     }
     final String token = _createToken();
-    final LocalRpcServer server = await LocalRpcServer.bind(
-      maxConnections: 1,
-    );
+    final LocalRpcServer server = await LocalRpcServer.bind(maxConnections: 1);
     try {
       final LocalMediaServer mediaServer = await LocalMediaServer.bind(
         token: token,
@@ -130,30 +128,30 @@ class RemoteApplicationRpcSession {
     _eventSubscriptions.clear();
     _authenticationTimer?.cancel();
     _authenticationTimer = Timer(const Duration(seconds: 10), () {
-      if (!_disposed &&
-          identical(_connection, connection) &&
-          !_authenticated) {
+      if (!_disposed && identical(_connection, connection) && !_authenticated) {
         unawaited(connection.close());
       }
     });
-    unawaited(connection.done.whenComplete(() {
-      if (identical(_connection, connection)) {
-        _authenticationTimer?.cancel();
-        _authenticationTimer = null;
-        _connection = null;
-        if (!_disposed) {
-          _authenticated = false;
+    unawaited(
+      connection.done.whenComplete(() {
+        if (identical(_connection, connection)) {
+          _authenticationTimer?.cancel();
+          _authenticationTimer = null;
+          _connection = null;
+          if (!_disposed) {
+            _authenticated = false;
+          }
         }
-      }
-    }));
-    connection.registerRequestHandler(
-      'session.authenticate',
-      _authenticate,
+      }),
     );
+    connection.registerRequestHandler('session.authenticate', _authenticate);
     connection.registerRequestHandler('service.acquire', _acquireService);
     connection.registerRequestHandler('service.invoke', _invokeService);
     connection.registerRequestHandler('service.subscribe', _subscribeService);
-    connection.registerRequestHandler('service.unsubscribe', _unsubscribeService);
+    connection.registerRequestHandler(
+      'service.unsubscribe',
+      _unsubscribeService,
+    );
   }
 
   Future<Object?> _authenticate(Map<String, Object?> parameters) async {
@@ -162,7 +160,8 @@ class RemoteApplicationRpcSession {
     }
 
     final Object? suppliedToken = parameters['token'];
-    if (suppliedToken is! String || !_constantTimeEquals(suppliedToken, _token)) {
+    if (suppliedToken is! String ||
+        !_constantTimeEquals(suppliedToken, _token)) {
       throw const RpcException(-32001, 'Invalid application session token.');
     }
 
@@ -179,9 +178,7 @@ class RemoteApplicationRpcSession {
     };
   }
 
-  Future<Object?> _acquireService(
-    Map<String, Object?> parameters,
-  ) async {
+  Future<Object?> _acquireService(Map<String, Object?> parameters) async {
     _ensureAuthenticated();
     final ServiceId serviceId = _readServiceId(parameters);
 
@@ -198,9 +195,7 @@ class RemoteApplicationRpcSession {
     }
   }
 
-  Future<Object?> _subscribeService(
-    Map<String, Object?> parameters,
-  ) async {
+  Future<Object?> _subscribeService(Map<String, Object?> parameters) async {
     _ensureAuthenticated();
     final ServiceId serviceId = _readServiceId(parameters);
     try {
@@ -214,26 +209,22 @@ class RemoteApplicationRpcSession {
     }
   }
 
-  Future<Object?> _unsubscribeService(
-    Map<String, Object?> parameters,
-  ) async {
+  Future<Object?> _unsubscribeService(Map<String, Object?> parameters) async {
     _ensureAuthenticated();
     final ServiceId serviceId = _readServiceId(parameters);
     _eventSubscriptions.remove(serviceId);
     return <String, Object?>{'subscribed': false};
   }
 
-  Future<Object?> _invokeService(
-    Map<String, Object?> parameters,
-  ) async {
+  Future<Object?> _invokeService(Map<String, Object?> parameters) async {
     _ensureAuthenticated();
     final ServiceId serviceId = _readServiceId(parameters);
     final Object? rawMethod = parameters['method'];
     if (rawMethod is! String || rawMethod.isEmpty || rawMethod.length > 128) {
       throw const RpcException(-32602, 'Invalid service method.');
     }
-    final Object rawArguments = parameters['arguments'] ??
-        const <String, Object?>{};
+    final Object rawArguments =
+        parameters['arguments'] ?? const <String, Object?>{};
     if (rawArguments is! Map) {
       throw const RpcException(-32602, 'Service arguments must be an object.');
     }
@@ -241,7 +232,10 @@ class RemoteApplicationRpcSession {
     final Map<String, Object?> arguments = <String, Object?>{};
     for (final MapEntry<Object?, Object?> entry in rawArguments.entries) {
       if (entry.key is! String) {
-        throw const RpcException(-32602, 'Service argument keys must be strings.');
+        throw const RpcException(
+          -32602,
+          'Service argument keys must be strings.',
+        );
       }
       arguments[entry.key as String] = entry.value;
     }
@@ -262,10 +256,9 @@ class RemoteApplicationRpcSession {
   }
 
   void sendLifecycleState(ApplicationLifecycleState state) {
-    _sendNotification(
-      'application.lifecycle',
-      <String, Object?>{'state': state.name},
-    );
+    _sendNotification('application.lifecycle', <String, Object?>{
+      'state': state.name,
+    });
   }
 
   /// Publishes a typed service event to the external application.
@@ -293,14 +286,11 @@ class RemoteApplicationRpcSession {
     } on ServiceNotFoundException {
       return;
     }
-    _sendNotification(
-      'service.event',
-      <String, Object?>{
-        'serviceId': serviceId.value,
-        'event': event,
-        'data': data,
-      },
-    );
+    _sendNotification('service.event', <String, Object?>{
+      'serviceId': serviceId.value,
+      'event': event,
+      'data': data,
+    });
   }
 
   /// Sends a normalized multitouch event to the external application.
@@ -342,7 +332,10 @@ class RemoteApplicationRpcSession {
 
   void _ensureAuthenticated() {
     if (!_authenticated) {
-      throw const RpcException(-32001, 'Application session is not authenticated.');
+      throw const RpcException(
+        -32001,
+        'Application session is not authenticated.',
+      );
     }
   }
 

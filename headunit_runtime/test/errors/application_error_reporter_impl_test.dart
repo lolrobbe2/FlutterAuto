@@ -61,10 +61,7 @@ void main() {
       reporter.report(second);
       reporter.report(third);
 
-      expect(
-        reporter.recentErrors,
-        <ApplicationError>[second, third],
-      );
+      expect(reporter.recentErrors, <ApplicationError>[second, third]);
 
       await reporter.dispose();
     });
@@ -75,10 +72,7 @@ void main() {
 
       reporter.report(createError('Something failed'));
 
-      expect(
-        () => reporter.recentErrors.clear(),
-        throwsUnsupportedError,
-      );
+      expect(() => reporter.recentErrors.clear(), throwsUnsupportedError);
 
       await reporter.dispose();
     });
@@ -89,10 +83,7 @@ void main() {
 
       await reporter.dispose();
 
-      expect(
-        () => reporter.report(createError('Too late')),
-        throwsStateError,
-      );
+      expect(() => reporter.report(createError('Too late')), throwsStateError);
     });
 
     test('allows repeated disposal', () async {

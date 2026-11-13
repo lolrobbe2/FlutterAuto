@@ -1,6 +1,5 @@
 part of 'audio_service.dart';
 
-
 class AudioSession {
   final AudioSessionId id;
   final SoLoud _soLoud;
@@ -9,10 +8,7 @@ class AudioSession {
 
   bool _closed = false;
 
-  AudioSession._({
-    required this.id,
-    required this._soLoud,
-  });
+  AudioSession._({required this.id, required this._soLoud});
 
   bool get isClosed => _closed;
 
@@ -68,9 +64,7 @@ class AudioSession {
     _streams.clear();
 
     await Future.wait(
-      streamsToClose.map(
-        (AudioStream stream) => stream.dispose(),
-      ),
+      streamsToClose.map((AudioStream stream) => stream.dispose()),
     );
   }
 }

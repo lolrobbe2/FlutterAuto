@@ -51,7 +51,7 @@ class HeadunitRuntime {
   }
 
   HeadunitRuntime({AudioService? audioService})
-      : _audioService = audioService ?? AudioService();
+    : _audioService = audioService ?? AudioService();
 
   Future<void> initialize() {
     if (_disposeRequested) {

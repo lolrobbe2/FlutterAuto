@@ -127,8 +127,7 @@ class AudioStream {
     _handle = null;
 
     try {
-      if (handle != null &&
-          _soLoud.getIsValidVoiceHandle(handle)) {
+      if (handle != null && _soLoud.getIsValidVoiceHandle(handle)) {
         await _soLoud.stop(handle);
       }
     } finally {
@@ -141,8 +140,7 @@ class AudioStream {
 
     final SoundHandle? handle = _handle;
 
-    if (handle == null ||
-        !_soLoud.getIsValidVoiceHandle(handle)) {
+    if (handle == null || !_soLoud.getIsValidVoiceHandle(handle)) {
       _handle = null;
       return null;
     }

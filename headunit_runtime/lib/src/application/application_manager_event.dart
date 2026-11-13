@@ -1,9 +1,6 @@
 import 'package:headunit_shared/headunit_shared_io.dart';
 
-enum ApplicationManagerEventType {
-  applicationsChanged,
-  foregroundChanged,
-}
+enum ApplicationManagerEventType { applicationsChanged, foregroundChanged }
 
 class ApplicationManagerEvent {
   final ApplicationManagerEventType type;

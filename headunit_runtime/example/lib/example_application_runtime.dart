@@ -28,20 +28,15 @@ class ExampleApplicationInstance implements ApplicationInstance {
   final StreamController<ApplicationLifecycleEvent> _events =
       StreamController<ApplicationLifecycleEvent>.broadcast();
 
-  ApplicationLifecycleState _state =
-      ApplicationLifecycleState.stopped;
+  ApplicationLifecycleState _state = ApplicationLifecycleState.stopped;
 
-  ExampleApplicationInstance({
-    required this.id,
-    required this._serviceBroker,
-  });
+  ExampleApplicationInstance({required this.id, required this._serviceBroker});
 
   @override
   ApplicationLifecycleState get state => _state;
 
   @override
-  Stream<ApplicationLifecycleEvent> get lifecycleEvents =>
-      _events.stream;
+  Stream<ApplicationLifecycleEvent> get lifecycleEvents => _events.stream;
 
   @override
   Future<void> start() async {
@@ -77,9 +72,7 @@ class ExampleApplicationInstance implements ApplicationInstance {
 
   void _transition(ApplicationLifecycleState next) {
     if (!_state.canTransitionTo(next)) {
-      throw StateError(
-        'Invalid transition: ${_state.name} -> ${next.name}',
-      );
+      throw StateError('Invalid transition: ${_state.name} -> ${next.name}');
     }
 
     final ApplicationLifecycleState previous = _state;

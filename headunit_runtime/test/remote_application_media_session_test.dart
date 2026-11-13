@@ -42,32 +42,34 @@ void main() {
       registry.dispose();
     });
 
-    test('opens separate media channel and transfers an IDR access unit',
-        () async {
-      final Future<MediaStreamConnection> accepted =
-          session.mediaConnections.first;
-      final MediaStreamClient appMedia = await connection.openMediaStream();
-      final MediaStreamConnection hostMedia = await accepted;
+    test(
+      'opens separate media channel and transfers an IDR access unit',
+      () async {
+        final Future<MediaStreamConnection> accepted =
+            session.mediaConnections.first;
+        final MediaStreamClient appMedia = await connection.openMediaStream();
+        final MediaStreamConnection hostMedia = await accepted;
 
-      expect(appMedia.configuration.width, 800);
-      expect(appMedia.configuration.height, 480);
-      expect(appMedia.requiresKeyFrame, isTrue);
+        expect(appMedia.configuration.width, 800);
+        expect(appMedia.configuration.height, 480);
+        expect(appMedia.requiresKeyFrame, isTrue);
 
-      await appMedia.sendFrame(
-        EncodedVideoFrame(
-          sequenceNumber: 0,
-          presentationTimeMicros: 0,
-          isKeyFrame: true,
-          data: Uint8List.fromList(<int>[0, 0, 0, 1, 0x65]),
-        ),
-      );
+        await appMedia.sendFrame(
+          EncodedVideoFrame(
+            sequenceNumber: 0,
+            presentationTimeMicros: 0,
+            isKeyFrame: true,
+            data: Uint8List.fromList(<int>[0, 0, 0, 1, 0x65]),
+          ),
+        );
 
-      final EncodedVideoFrame? frame = await hostMedia
-          .nextFrame()
-          .timeout(const Duration(seconds: 2));
-      expect(frame, isNotNull);
-      expect(frame!.isKeyFrame, isTrue);
-      expect(frame.data, <int>[0, 0, 0, 1, 0x65]);
-    });
+        final EncodedVideoFrame? frame = await hostMedia.nextFrame().timeout(
+          const Duration(seconds: 2),
+        );
+        expect(frame, isNotNull);
+        expect(frame!.isKeyFrame, isTrue);
+        expect(frame.data, <int>[0, 0, 0, 1, 0x65]);
+      },
+    );
   });
 }

@@ -16,4 +16,5 @@ export 'src/application/flutter_application_package_reader.dart';
 export 'src/application/flutter_application_package_installer.dart';
 
 export 'package:headunit_shared/headunit_shared_io.dart';
+
 export 'src/media/presentation/headunit_media_flutter.dart';

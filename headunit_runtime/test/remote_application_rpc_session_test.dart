@@ -34,8 +34,7 @@ void main() {
         locale: 'en-US',
         productId: 'test-product',
       );
-      final RemoteServiceBroker broker =
-          registry.createBroker(context);
+      final RemoteServiceBroker broker = registry.createBroker(context);
       session = await RemoteApplicationRpcSession.bind(
         context: context,
         serviceBroker: broker,
@@ -54,29 +53,32 @@ void main() {
       registry.dispose();
     });
 
-    test('authenticates and acquires a capability-authorized service', () async {
-      expect(connection.applicationId, applicationId);
-      expect(connection.locale, 'en-US');
-      expect(connection.productId, 'test-product');
-      expect(connection.hasCapability(capability), isTrue);
+    test(
+      'authenticates and acquires a capability-authorized service',
+      () async {
+        expect(connection.applicationId, applicationId);
+        expect(connection.locale, 'en-US');
+        expect(connection.productId, 'test-product');
+        expect(connection.hasCapability(capability), isTrue);
 
-      final _EchoService service = await connection.services.acquire(
-        _EchoService.key,
-      );
-      final Object? response = await service.echo('hello');
-      expect(response, <String, Object?>{'value': 'hello'});
-    });
+        final _EchoService service = await connection.services.acquire(
+          _EchoService.key,
+        );
+        final Object? response = await service.echo('hello');
+        expect(response, <String, Object?>{'value': 'hello'});
+      },
+    );
 
     test('rejects a broker with a broader capability grant', () async {
       final ApplicationLaunchContext restrictedContext =
           ApplicationLaunchContext(applicationId: applicationId);
-      final ApplicationLaunchContext broaderContext =
-          ApplicationLaunchContext(
-            applicationId: applicationId,
-            grantedCapabilities: <CapabilityId>[capability],
-          );
-      final RemoteServiceBroker broaderBroker =
-          registry.createBroker(broaderContext);
+      final ApplicationLaunchContext broaderContext = ApplicationLaunchContext(
+        applicationId: applicationId,
+        grantedCapabilities: <CapabilityId>[capability],
+      );
+      final RemoteServiceBroker broaderBroker = registry.createBroker(
+        broaderContext,
+      );
 
       await expectLater(
         RemoteApplicationRpcSession.bind(
@@ -91,10 +93,12 @@ void main() {
       await connection.close();
       await session.dispose();
 
-      final ApplicationLaunchContext deniedContext =
-          ApplicationLaunchContext(applicationId: applicationId);
-      final RemoteServiceBroker deniedBroker =
-          registry.createBroker(deniedContext);
+      final ApplicationLaunchContext deniedContext = ApplicationLaunchContext(
+        applicationId: applicationId,
+      );
+      final RemoteServiceBroker deniedBroker = registry.createBroker(
+        deniedContext,
+      );
       session = await RemoteApplicationRpcSession.bind(
         context: deniedContext,
         serviceBroker: deniedBroker,
@@ -146,8 +150,8 @@ void main() {
     });
 
     test('forwards authorized service events to the app', () async {
-      final RemoteServiceHandle handle =
-          await connection.services.acquireHandle(serviceId);
+      final RemoteServiceHandle handle = await connection.services
+          .acquireHandle(serviceId);
       await handle.subscribeEvents();
       final Future<RemoteServiceEvent> event = connection.serviceEvents.first;
 
@@ -168,18 +172,15 @@ void main() {
 class _EchoService {
   static final RemoteServiceKey<_EchoService> key =
       RemoteServiceKey<_EchoService>(
-    serviceId: ServiceId('headunit.example'),
-    create: _EchoService._,
-  );
+        serviceId: ServiceId('headunit.example'),
+        create: _EchoService._,
+      );
 
   final RemoteServiceHandle _remote;
 
   _EchoService._(this._remote);
 
   Future<Object?> echo(String value) {
-    return _remote.invoke(
-      'echo',
-      arguments: <String, Object?>{'value': value},
-    );
+    return _remote.invoke('echo', arguments: <String, Object?>{'value': value});
   }
 }

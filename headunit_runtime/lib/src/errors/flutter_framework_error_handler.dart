@@ -11,9 +11,7 @@ class FlutterFrameworkErrorHandler {
 
   late final FlutterExceptionHandler _installedHandler = _handleError;
 
-  FlutterFrameworkErrorHandler({
-    required this._errorReporter,
-  });
+  FlutterFrameworkErrorHandler({required this._errorReporter});
 
   void install() {
     if (_disposed) {
@@ -76,8 +74,7 @@ class FlutterFrameworkErrorHandler {
     _disposed = true;
 
     // Do not overwrite a handler installed by another component after ours.
-    if (_installed &&
-        identical(FlutterError.onError, _installedHandler)) {
+    if (_installed && identical(FlutterError.onError, _installedHandler)) {
       FlutterError.onError = _previousHandler;
     }
 

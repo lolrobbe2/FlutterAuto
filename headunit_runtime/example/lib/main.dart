@@ -136,9 +136,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
   }
 
   Future<void> _startRemoteVideoDemo() async {
-    if (_startingRemoteVideoDemo ||
-        _remoteVideoDemo != null ||
-        _shuttingDown) {
+    if (_startingRemoteVideoDemo || _remoteVideoDemo != null || _shuttingDown) {
       return;
     }
 
@@ -213,7 +211,8 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
       return;
     }
     setState(() {
-      _status = 'Remote pointer ${event.phase.name}: '
+      _status =
+          'Remote pointer ${event.phase.name}: '
           '${(event.x * 100).toStringAsFixed(1)}%, '
           '${(event.y * 100).toStringAsFixed(1)}%';
     });
@@ -290,9 +289,8 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
               runSpacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: demo != null ||
-                          _startingRemoteVideoDemo ||
-                          _shuttingDown
+                  onPressed:
+                      demo != null || _startingRemoteVideoDemo || _shuttingDown
                       ? null
                       : _startRemoteVideoDemo,
                   icon: _startingRemoteVideoDemo
@@ -303,7 +301,9 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
                         )
                       : const Icon(Icons.play_arrow),
                   label: Text(
-                    _startingRemoteVideoDemo ? 'Starting...' : 'Start video demo',
+                    _startingRemoteVideoDemo
+                        ? 'Starting...'
+                        : 'Start video demo',
                   ),
                 ),
                 OutlinedButton.icon(
@@ -318,6 +318,7 @@ class _RuntimeExamplePageState extends State<RuntimeExamplePage> {
       ),
     );
   }
+
   void _createSession() {
     final AudioService? audioService = _audioService;
 

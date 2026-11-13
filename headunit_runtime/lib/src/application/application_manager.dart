@@ -1,6 +1,5 @@
 import 'dart:async';
 
-
 import '../../headunit_runtime.dart';
 import '../services/service_registry.dart';
 import 'application_manager_event.dart';

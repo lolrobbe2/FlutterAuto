@@ -11,18 +11,19 @@ class ApplicationRegistration {
     required this.manifest,
     required Iterable<CapabilityId> grantedCapabilities,
     this.backgroundPolicy = ApplicationBackgroundPolicy.keepMounted,
-  }) : grantedCapabilities =
-           Set<CapabilityId>.unmodifiable(grantedCapabilities) {
-    final Set<CapabilityId> requestedCapabilities =
-        manifest.requestedCapabilities.toSet();
+  }) : grantedCapabilities = Set<CapabilityId>.unmodifiable(
+         grantedCapabilities,
+       ) {
+    final Set<CapabilityId> requestedCapabilities = manifest
+        .requestedCapabilities
+        .toSet();
 
-    final List<CapabilityId> invalidGrants =
-        this.grantedCapabilities
-            .where(
-              (CapabilityId capability) =>
-                  !requestedCapabilities.contains(capability),
-            )
-            .toList();
+    final List<CapabilityId> invalidGrants = this.grantedCapabilities
+        .where(
+          (CapabilityId capability) =>
+              !requestedCapabilities.contains(capability),
+        )
+        .toList();
 
     if (invalidGrants.isNotEmpty) {
       throw ArgumentError(

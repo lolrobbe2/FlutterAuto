@@ -46,10 +46,7 @@ class ServiceRegistry {
 
   RemoteServiceBroker createBroker(ApplicationLaunchContext context) {
     _ensureActive();
-    return _RuntimeServiceBroker(
-      registry: this,
-      context: context,
-    );
+    return _RuntimeServiceBroker(registry: this, context: context);
   }
 
   T _resolve<T extends Object>({
@@ -173,24 +170,17 @@ class _RuntimeServiceBroker implements RemoteServiceBroker {
   final ServiceRegistry _registry;
   final ApplicationLaunchContext _context;
 
-  _RuntimeServiceBroker({
-    required this._registry,
-    required this._context,
-  });
+  _RuntimeServiceBroker({required this._registry, required this._context});
 
   @override
   ApplicationId get applicationId => _context.applicationId;
 
   @override
-  List<CapabilityId> get grantedCapabilities =>
-      _context.grantedCapabilities;
+  List<CapabilityId> get grantedCapabilities => _context.grantedCapabilities;
 
   @override
   T getService<T extends Object>(ServiceKey<T> key) {
-    return _registry._resolve(
-      context: _context,
-      key: key,
-    );
+    return _registry._resolve(context: _context, key: key);
   }
 
   @override
@@ -200,10 +190,7 @@ class _RuntimeServiceBroker implements RemoteServiceBroker {
 
   @override
   List<String> getRemoteMethods(ServiceId serviceId) {
-    return _registry._getRemoteMethods(
-      context: _context,
-      serviceId: serviceId,
-    );
+    return _registry._getRemoteMethods(context: _context, serviceId: serviceId);
   }
 
   @override

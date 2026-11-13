@@ -19,9 +19,7 @@ void main() {
     setUp(() {
       registry = ServiceRegistry();
 
-      serviceKey = ServiceKey<TestService>(
-        ServiceId('headunit.test'),
-      );
+      serviceKey = ServiceKey<TestService>(ServiceId('headunit.test'));
 
       service = TestService('test service');
     });
@@ -31,16 +29,13 @@ void main() {
     });
 
     test('registers and resolves a service', () {
-      registry.register<TestService>(
-        key: serviceKey,
-        instance: service,
+      registry.register<TestService>(key: serviceKey, instance: service);
+
+      final ServiceBroker broker = registry.createBroker(
+        createTestLaunchContext(),
       );
 
-      final ServiceBroker broker =
-          registry.createBroker(createTestLaunchContext());
-
-      final TestService resolved =
-          broker.getService(serviceKey);
+      final TestService resolved = broker.getService(serviceKey);
 
       expect(identical(resolved, service), isTrue);
     });
@@ -52,8 +47,9 @@ void main() {
         requiredCapabilities: [audioCapability],
       );
 
-      final ServiceBroker broker =
-          registry.createBroker(createTestLaunchContext());
+      final ServiceBroker broker = registry.createBroker(
+        createTestLaunchContext(),
+      );
 
       expect(
         () => broker.getService(serviceKey),
@@ -69,42 +65,32 @@ void main() {
       );
 
       final ServiceBroker broker = registry.createBroker(
-        createTestLaunchContext(
-          grantedCapabilities: [audioCapability],
-        ),
+        createTestLaunchContext(grantedCapabilities: [audioCapability]),
       );
 
-      expect(
-        identical(broker.getService(serviceKey), service),
-        isTrue,
-      );
+      expect(identical(broker.getService(serviceKey), service), isTrue);
     });
 
     test('checks multiple required capabilities', () {
-      final CapabilityId locationCapability =
-          CapabilityId('navigation.location.read');
+      final CapabilityId locationCapability = CapabilityId(
+        'navigation.location.read',
+      );
 
       registry.register<TestService>(
         key: serviceKey,
         instance: service,
-        requiredCapabilities: [
-          audioCapability,
-          locationCapability,
-        ],
+        requiredCapabilities: [audioCapability, locationCapability],
       );
 
       final ServiceBroker broker = registry.createBroker(
-        createTestLaunchContext(
-          grantedCapabilities: [audioCapability],
-        ),
+        createTestLaunchContext(grantedCapabilities: [audioCapability]),
       );
 
       expect(
         () => broker.getService(serviceKey),
         throwsA(
           isA<ServiceAccessDeniedException>().having(
-            (ServiceAccessDeniedException error) =>
-                error.missingCapabilities,
+            (ServiceAccessDeniedException error) => error.missingCapabilities,
             'missingCapabilities',
             contains(locationCapability),
           ),
@@ -113,11 +99,11 @@ void main() {
     });
 
     test('throws when service does not exist', () {
-      final ServiceBroker broker =
-          registry.createBroker(createTestLaunchContext());
+      final ServiceBroker broker = registry.createBroker(
+        createTestLaunchContext(),
+      );
 
-      final ServiceKey<TestService> unknownKey =
-          ServiceKey<TestService>(
+      final ServiceKey<TestService> unknownKey = ServiceKey<TestService>(
         ServiceId('headunit.unknown'),
       );
 
@@ -128,10 +114,7 @@ void main() {
     });
 
     test('rejects duplicate registrations', () {
-      registry.register<TestService>(
-        key: serviceKey,
-        instance: service,
-      );
+      registry.register<TestService>(key: serviceKey, instance: service);
 
       expect(
         () => registry.register<TestService>(
@@ -143,16 +126,13 @@ void main() {
     });
 
     test('detects a type mismatch', () {
-      registry.register<TestService>(
-        key: serviceKey,
-        instance: service,
+      registry.register<TestService>(key: serviceKey, instance: service);
+
+      final ServiceKey<String> incorrectKey = ServiceKey<String>(serviceKey.id);
+
+      final ServiceBroker broker = registry.createBroker(
+        createTestLaunchContext(),
       );
-
-      final ServiceKey<String> incorrectKey =
-          ServiceKey<String>(serviceKey.id);
-
-      final ServiceBroker broker =
-          registry.createBroker(createTestLaunchContext());
 
       expect(
         () => broker.getService(incorrectKey),
@@ -161,16 +141,14 @@ void main() {
     });
 
     test('unregisters a service', () {
-      registry.register<TestService>(
-        key: serviceKey,
-        instance: service,
-      );
+      registry.register<TestService>(key: serviceKey, instance: service);
 
       expect(registry.unregister(serviceKey.id), isTrue);
       expect(registry.unregister(serviceKey.id), isFalse);
 
-      final ServiceBroker broker =
-          registry.createBroker(createTestLaunchContext());
+      final ServiceBroker broker = registry.createBroker(
+        createTestLaunchContext(),
+      );
 
       expect(
         () => broker.getService(serviceKey),
@@ -182,10 +160,8 @@ void main() {
       registry.dispose();
 
       expect(
-        () => registry.register<TestService>(
-          key: serviceKey,
-          instance: service,
-        ),
+        () =>
+            registry.register<TestService>(key: serviceKey, instance: service),
         throwsStateError,
       );
     });
@@ -200,30 +176,23 @@ void main() {
     });
 
     test('rejects service resolution after disposal', () {
-      registry.register<TestService>(
-        key: serviceKey,
-        instance: service,
-      );
+      registry.register<TestService>(key: serviceKey, instance: service);
 
-      final ServiceBroker broker =
-          registry.createBroker(createTestLaunchContext());
+      final ServiceBroker broker = registry.createBroker(
+        createTestLaunchContext(),
+      );
 
       registry.dispose();
 
-      expect(
-        () => broker.getService(serviceKey),
-        throwsStateError,
-      );
+      expect(() => broker.getService(serviceKey), throwsStateError);
     });
 
     test('does not expose its internal registry through the broker', () {
-      registry.register<TestService>(
-        key: serviceKey,
-        instance: service,
-      );
+      registry.register<TestService>(key: serviceKey, instance: service);
 
-      final ServiceBroker broker =
-          registry.createBroker(createTestLaunchContext());
+      final ServiceBroker broker = registry.createBroker(
+        createTestLaunchContext(),
+      );
 
       expect(broker, isA<ServiceBroker>());
       expect(broker.applicationId, createTestApplicationId());

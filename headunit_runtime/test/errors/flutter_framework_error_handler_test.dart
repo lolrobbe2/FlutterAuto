@@ -15,9 +15,7 @@ void main() {
 
       reporter = ApplicationErrorReporterImpl();
 
-      handler = FlutterFrameworkErrorHandler(
-        errorReporter: reporter,
-      );
+      handler = FlutterFrameworkErrorHandler(errorReporter: reporter);
     });
 
     tearDown(() async {
@@ -33,9 +31,7 @@ void main() {
 
       handler.install();
 
-      final StateError originalError = StateError(
-        'Widget build failed.',
-      );
+      final StateError originalError = StateError('Widget build failed.');
 
       final StackTrace originalStackTrace = StackTrace.current;
 
@@ -49,8 +45,7 @@ void main() {
 
       expect(reporter.recentErrors, hasLength(1));
 
-      final ApplicationError reportedError =
-          reporter.recentErrors.single;
+      final ApplicationError reportedError = reporter.recentErrors.single;
 
       expect(reportedError.applicationId, isNull);
       expect(reportedError.source, ApplicationErrorSource.widget);
@@ -108,8 +103,7 @@ void main() {
 
       handler.install();
 
-      final FlutterExceptionHandler? installedHandler =
-          FlutterError.onError;
+      final FlutterExceptionHandler? installedHandler = FlutterError.onError;
 
       handler.install();
 
@@ -119,10 +113,7 @@ void main() {
     test('cannot be installed after disposal', () {
       handler.dispose();
 
-      expect(
-        handler.install,
-        throwsStateError,
-      );
+      expect(handler.install, throwsStateError);
     });
 
     test('disposal is idempotent', () {

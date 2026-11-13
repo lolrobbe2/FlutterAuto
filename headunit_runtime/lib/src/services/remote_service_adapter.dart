@@ -23,13 +23,19 @@ class RemoteServiceAdapter {
   }) : requiredCapabilities = Set<CapabilityId>.unmodifiable(
          requiredCapabilities,
        ),
-       _handlers = Map<String, RemoteServiceMethodHandler>.unmodifiable(methods) {
+       _handlers = Map<String, RemoteServiceMethodHandler>.unmodifiable(
+         methods,
+       ) {
     if (_handlers.isEmpty) {
       throw ArgumentError('A remote service must expose at least one method.');
     }
     for (final String method in _handlers.keys) {
       if (method.trim().isEmpty || method.length > 128) {
-        throw ArgumentError.value(method, 'methods', 'Invalid RPC method name.');
+        throw ArgumentError.value(
+          method,
+          'methods',
+          'Invalid RPC method name.',
+        );
       }
     }
   }
@@ -39,10 +45,7 @@ class RemoteServiceAdapter {
     return List<String>.unmodifiable(result);
   }
 
-  Future<Object?> invoke(
-    String method,
-    Map<String, Object?> arguments,
-  ) async {
+  Future<Object?> invoke(String method, Map<String, Object?> arguments) async {
     final RemoteServiceMethodHandler? handler = _handlers[method];
     if (handler == null) {
       throw RemoteServiceMethodNotFoundException(serviceId, method);

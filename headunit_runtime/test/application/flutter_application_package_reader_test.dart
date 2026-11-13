@@ -33,10 +33,7 @@ FlutterApplicationPackageManifest createManifest() {
 
 List<ArchiveFile> createValidEntries() {
   return [
-    ArchiveFile.string(
-      'manifest.json',
-      jsonEncode(createManifest().toJson()),
-    ),
+    ArchiveFile.string('manifest.json', jsonEncode(createManifest().toJson())),
     ArchiveFile.string(
       'artifacts/android/arm64-v8a/app.apk',
       'fake apk payload',
@@ -103,18 +100,22 @@ void main() {
       expect(package.manifest.targets, hasLength(2));
 
       expect(
-        package.manifest.targetFor(
-          platform: FlutterApplicationPlatform.android,
-          architecture: 'arm64-v8a',
-        )?.entryPoint,
+        package.manifest
+            .targetFor(
+              platform: FlutterApplicationPlatform.android,
+              architecture: 'arm64-v8a',
+            )
+            ?.entryPoint,
         'app.apk',
       );
 
       expect(
-        package.manifest.targetFor(
-          platform: FlutterApplicationPlatform.windows,
-          architecture: 'x64',
-        )?.entryPoint,
+        package.manifest
+            .targetFor(
+              platform: FlutterApplicationPlatform.windows,
+              architecture: 'x64',
+            )
+            ?.entryPoint,
         'radio.exe',
       );
 
@@ -135,9 +136,7 @@ void main() {
     });
 
     test('rejects an invalid ZIP archive', () async {
-      final File file = File(
-        '${temporaryDirectory.path}/invalid.happ',
-      );
+      final File file = File('${temporaryDirectory.path}/invalid.happ');
 
       await file.writeAsString('not a ZIP archive');
 
@@ -150,9 +149,7 @@ void main() {
     test('rejects an archive without a root manifest', () async {
       final File file = await writeHapp(
         temporaryDirectory,
-        entries: [
-          ArchiveFile.string('readme.txt', 'No manifest here'),
-        ],
+        entries: [ArchiveFile.string('readme.txt', 'No manifest here')],
       );
 
       await expectLater(
@@ -164,9 +161,7 @@ void main() {
     test('rejects a package with an invalid manifest', () async {
       final File file = await writeHapp(
         temporaryDirectory,
-        entries: [
-          ArchiveFile.string('manifest.json', 'not valid JSON'),
-        ],
+        entries: [ArchiveFile.string('manifest.json', 'not valid JSON')],
       );
 
       await expectLater(
@@ -183,10 +178,7 @@ void main() {
           )
           .toList();
 
-      final File file = await writeHapp(
-        temporaryDirectory,
-        entries: entries,
-      );
+      final File file = await writeHapp(temporaryDirectory, entries: entries);
 
       await expectLater(
         reader.read(file),
@@ -202,10 +194,7 @@ void main() {
           )
           .toList();
 
-      final File file = await writeHapp(
-        temporaryDirectory,
-        entries: entries,
-      );
+      final File file = await writeHapp(temporaryDirectory, entries: entries);
 
       await expectLater(
         reader.read(file),
@@ -215,14 +204,9 @@ void main() {
 
     test('rejects path traversal entries', () async {
       final List<ArchiveFile> entries = createValidEntries()
-        ..add(
-          ArchiveFile.string('../outside.txt', 'outside the package'),
-        );
+        ..add(ArchiveFile.string('../outside.txt', 'outside the package'));
 
-      final File file = await writeHapp(
-        temporaryDirectory,
-        entries: entries,
-      );
+      final File file = await writeHapp(temporaryDirectory, entries: entries);
 
       await expectLater(
         reader.read(file),
@@ -235,10 +219,7 @@ void main() {
         ..add(ArchiveFile.string('Assets/icon.png', 'first'))
         ..add(ArchiveFile.string('assets/Icon.png', 'second'));
 
-      final File file = await writeHapp(
-        temporaryDirectory,
-        entries: entries,
-      );
+      final File file = await writeHapp(temporaryDirectory, entries: entries);
 
       await expectLater(
         reader.read(file),
@@ -253,9 +234,7 @@ void main() {
       );
 
       final FlutterApplicationPackageReader limitedReader =
-          FlutterApplicationPackageReader(
-        maxArchiveEntries: 2,
-      );
+          FlutterApplicationPackageReader(maxArchiveEntries: 2);
 
       await expectLater(
         limitedReader.read(file),
@@ -270,9 +249,7 @@ void main() {
       );
 
       final FlutterApplicationPackageReader limitedReader =
-          FlutterApplicationPackageReader(
-        maxExpandedSizeBytes: 32,
-      );
+          FlutterApplicationPackageReader(maxExpandedSizeBytes: 32);
 
       await expectLater(
         limitedReader.read(file),
@@ -287,9 +264,7 @@ void main() {
       );
 
       final FlutterApplicationPackageReader limitedReader =
-          FlutterApplicationPackageReader(
-        maxPackageSizeBytes: 10,
-      );
+          FlutterApplicationPackageReader(maxPackageSizeBytes: 10);
 
       await expectLater(
         limitedReader.read(file),

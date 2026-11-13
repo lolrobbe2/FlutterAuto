@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
+
 //HAPP = Headunit Application
 FlutterApplicationPackageManifest createManifest() {
   return FlutterApplicationPackageManifest(
@@ -34,14 +35,8 @@ FlutterApplicationPackageManifest createManifest() {
 
 List<ArchiveFile> createValidEntries() {
   return [
-    ArchiveFile.string(
-      'manifest.json',
-      jsonEncode(createManifest().toJson()),
-    ),
-    ArchiveFile.string(
-      'assets/icon.png',
-      'fake icon',
-    ),
+    ArchiveFile.string('manifest.json', jsonEncode(createManifest().toJson())),
+    ArchiveFile.string('assets/icon.png', 'fake icon'),
     ArchiveFile.string(
       'artifacts/android/arm64-v8a/app.apk',
       'fake apk payload',
@@ -91,9 +86,7 @@ void main() {
         'flutter_auto_installer_test_',
       );
 
-      applicationsDirectory = Directory(
-        '${temporaryDirectory.path}/installed',
-      );
+      applicationsDirectory = Directory('${temporaryDirectory.path}/installed');
 
       installer = FlutterApplicationPackageInstaller();
     });
@@ -110,8 +103,7 @@ void main() {
         entries: createValidEntries(),
       );
 
-      final InstalledFlutterApplication installed =
-          await installer.install(
+      final InstalledFlutterApplication installed = await installer.install(
         packageFile: packageFile,
         applicationsDirectory: applicationsDirectory,
         platform: FlutterApplicationPlatform.windows,
@@ -125,9 +117,8 @@ void main() {
       expect(await installed.entryPoint.exists(), isTrue);
 
       expect(
-        await File(
-          '${installed.bundleDirectory.path}/flutter_windows.dll',
-        ).exists(),
+        await File('${installed.bundleDirectory.path}/flutter_windows.dll')
+            .exists(),
         isTrue,
       );
 
@@ -139,9 +130,8 @@ void main() {
       );
 
       expect(
-        await File(
-          '${installed.applicationDirectory.path}/assets/icon.png',
-        ).exists(),
+        await File('${installed.applicationDirectory.path}/assets/icon.png')
+            .exists(),
         isTrue,
       );
 
@@ -159,37 +149,35 @@ void main() {
       );
     });
 
-    test('installs the Android APK without extracting Windows binaries',
-        () async {
-      final File packageFile = await writeHapp(
-        temporaryDirectory,
-        entries: createValidEntries(),
-      );
+    test(
+      'installs the Android APK without extracting Windows binaries',
+      () async {
+        final File packageFile = await writeHapp(
+          temporaryDirectory,
+          entries: createValidEntries(),
+        );
 
-      final InstalledFlutterApplication installed =
-          await installer.install(
-        packageFile: packageFile,
-        applicationsDirectory: applicationsDirectory,
-        platform: FlutterApplicationPlatform.android,
-        architecture: 'arm64-v8a',
-      );
+        final InstalledFlutterApplication installed = await installer.install(
+          packageFile: packageFile,
+          applicationsDirectory: applicationsDirectory,
+          platform: FlutterApplicationPlatform.android,
+          architecture: 'arm64-v8a',
+        );
 
-      expect(installed.target.platform, FlutterApplicationPlatform.android);
-      expect(installed.target.architecture, 'arm64-v8a');
-      expect(await installed.entryPoint.exists(), isTrue);
+        expect(installed.target.platform, FlutterApplicationPlatform.android);
+        expect(installed.target.architecture, 'arm64-v8a');
+        expect(await installed.entryPoint.exists(), isTrue);
 
-      expect(
-        await installed.entryPoint.readAsString(),
-        'fake apk payload',
-      );
+        expect(await installed.entryPoint.readAsString(), 'fake apk payload');
 
-      expect(
-        await Directory(
-          '${installed.applicationDirectory.path}/artifacts/windows',
-        ).exists(),
-        isFalse,
-      );
-    });
+        expect(
+          await Directory(
+            '${installed.applicationDirectory.path}/artifacts/windows',
+          ).exists(),
+          isFalse,
+        );
+      },
+    );
 
     test('rejects an unavailable platform architecture', () async {
       final File packageFile = await writeHapp(
@@ -207,10 +195,7 @@ void main() {
         throwsA(isA<FlutterApplicationInstallationException>()),
       );
 
-      expect(
-        await applicationsDirectory.list().toList(),
-        isEmpty,
-      );
+      expect(await applicationsDirectory.list().toList(), isEmpty);
     });
 
     test('does not overwrite an existing application', () async {
@@ -219,8 +204,7 @@ void main() {
         entries: createValidEntries(),
       );
 
-      final InstalledFlutterApplication firstInstall =
-          await installer.install(
+      final InstalledFlutterApplication firstInstall = await installer.install(
         packageFile: packageFile,
         applicationsDirectory: applicationsDirectory,
         platform: FlutterApplicationPlatform.windows,
@@ -244,16 +228,11 @@ void main() {
         'fake executable payload',
       );
 
-      expect(
-        await applicationsDirectory.list().length,
-        1,
-      );
+      expect(await applicationsDirectory.list().length, 1);
     });
 
     test('cleans up staging data when package validation fails', () async {
-      final File packageFile = File(
-        '${temporaryDirectory.path}/radio.happ',
-      );
+      final File packageFile = File('${temporaryDirectory.path}/radio.happ');
 
       await packageFile.writeAsString('invalid ZIP data');
 
@@ -267,10 +246,7 @@ void main() {
         throwsA(isA<FlutterApplicationPackageException>()),
       );
 
-      expect(
-        await applicationsDirectory.list().toList(),
-        isEmpty,
-      );
+      expect(await applicationsDirectory.list().toList(), isEmpty);
     });
   });
 }
