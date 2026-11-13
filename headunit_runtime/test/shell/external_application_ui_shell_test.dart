@@ -92,38 +92,55 @@ void main() {
           ),
         );
 
-        final ApplicationInstance launched = await runtime.applicationManager
-            .launch(applicationId);
+        final ApplicationInstance? launched = await tester.runAsync(
+          () => runtime.applicationManager
+              .launch(applicationId)
+              .timeout(const Duration(seconds: 8)),
+        );
         expect(launched, isA<ExternalFlutterApplicationInstance>());
         expect(processLauncher.connection, isNotNull);
 
         final Completer<void> invoked = Completer<void>();
-        await processLauncher.connection!.ui.showPage(
-          HeadunitUiPage(
-            title: 'External page',
-            body: HeadunitUiColumn(
-              children: <HeadunitUiComponent>[
-                HeadunitUiText(text: 'Rendered by the headunit'),
-                HeadunitUiButton(
-                  label: 'Run action',
-                  action: HeadunitUiAction(
-                    id: 'shell.run',
-                    onInvoke: () {
-                      if (!invoked.isCompleted) invoked.complete();
-                    },
+        await tester.runAsync(
+          () => processLauncher.connection!.ui
+              .showPage(
+                HeadunitUiPage(
+                  title: 'External page',
+                  body: HeadunitUiColumn(
+                    children: <HeadunitUiComponent>[
+                      HeadunitUiText(text: 'Rendered by the headunit'),
+                      HeadunitUiButton(
+                        label: 'Run action',
+                        action: HeadunitUiAction(
+                          id: 'shell.run',
+                          onInvoke: () {
+                            if (!invoked.isCompleted) invoked.complete();
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
+              )
+              .timeout(const Duration(seconds: 8)),
         );
         await tester.pumpAndSettle();
 
         expect(find.text('External page'), findsOneWidget);
         expect(find.text('Rendered by the headunit'), findsOneWidget);
         await tester.tap(find.text('Run action'));
-        await invoked.future.timeout(const Duration(seconds: 2));
+        await tester.runAsync(
+          () => invoked.future.timeout(const Duration(seconds: 8)),
+        );
         expect(invoked.isCompleted, isTrue);
+
+        // Stop the child while runAsync is active. Its graceful-shutdown path
+        // closes a real TCP socket and completes the fake process exit future.
+        await tester.runAsync(
+          () => runtime.applicationManager
+              .stop(applicationId)
+              .timeout(const Duration(seconds: 8)),
+        );
       },
     );
   });

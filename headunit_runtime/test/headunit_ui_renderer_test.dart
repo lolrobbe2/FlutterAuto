@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
+import 'package:headunit_runtime/src/ui/headunit_ui_renderer.dart';
+import 'package:headunit_runtime/src/ui/headunit_ui_theme.dart';
 import 'package:headunit_sdk/headunit_sdk.dart';
 
 void main() {
