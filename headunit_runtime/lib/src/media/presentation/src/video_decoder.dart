@@ -1,24 +1,23 @@
-import 'package:headunit_shared/headunit_shared_io.dart';
+import 'package:flutter/widgets.dart';
+import 'package:headunit_shared/headunit_shared_io.dart'
+    show EncodedVideoFrame, VideoStreamConfiguration;
 
 /// Decodes one remote application's compressed video stream into a Flutter
-/// texture.
+/// widget.
 ///
-/// Platform implementations should use the operating system's hardware video
-/// decoder where available (MediaCodec on Android, Media Foundation on
-/// Windows). The interface deliberately exposes encoded access units rather
-/// than raw pixels so the Dart layer does not copy full-resolution RGBA frames.
+/// Implementations must keep their input buffering bounded. The decoder owns
+/// its rendering resources but does not own the media connection.
 abstract interface class VideoDecoder {
-  /// Flutter texture identifier registered by the native decoder.
-  int get textureId;
+  /// The visual representation of the decoded video.
+  Widget buildView();
 
-  /// Queues one Annex-B access unit for decoding.
+  /// Feeds one Annex-B access unit to the decoder.
   ///
-  /// Implementations must keep their internal input queue bounded. When the
-  /// decoder cannot keep up, they should discard dependent frames until the
-  /// next keyframe rather than accumulating latency.
+  /// Implementations must apply backpressure rather than accumulating an
+  /// unbounded queue of encoded frames.
   Future<void> decode(EncodedVideoFrame frame);
 
-  /// Releases the decoder and its Flutter texture.
+  /// Releases the decoder and its rendering resources.
   ///
   /// Disposal must be idempotent and wait for any in-flight [decode] operation.
   Future<void> dispose();

@@ -6,7 +6,7 @@ import 'package:headunit_runtime/headunit_runtime.dart';
 
 class _FakeVideoDecoder implements VideoDecoder {
   @override
-  final int textureId = 42;
+  Widget buildView() => const Texture(textureId: 42);
 
   final List<EncodedVideoFrame> decodedFrames = <EncodedVideoFrame>[];
   bool disposed = false;
@@ -121,13 +121,16 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: SizedBox(
-          width: 200,
-          height: 120,
-          child: RemoteVideoSurface(
-            connection: hostConnection!,
-            decoderFactory: (_) async => decoder,
-            onPointerEvent: (_) {},
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 200,
+            height: 120,
+            child: RemoteVideoSurface(
+              connection: hostConnection!,
+              decoderFactory: (_) async => decoder,
+              onPointerEvent: (_) {},
+            ),
           ),
         ),
       ),

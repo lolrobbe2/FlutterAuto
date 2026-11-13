@@ -95,3 +95,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+hooks:
+  user_defines:
+    ffmpeg_kit_extended_flutter:
+      type: "video_hw"
+      gpl: false
+      small: true

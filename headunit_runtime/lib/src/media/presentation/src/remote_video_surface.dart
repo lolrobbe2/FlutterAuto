@@ -1,11 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:headunit_shared/headunit_shared_io.dart';
+import 'package:headunit_shared/headunit_shared.dart';
+import 'package:headunit_shared/headunit_shared_io.dart'
+    show
+        EncodedVideoFrame,
+        MediaFrameSubscription,
+        MediaStreamConnection,
+        VideoStreamConfiguration;
 
+import 'ffmpeg_video_decoder.dart';
 import 'video_decoder.dart';
 
-/// Displays an external application's decoded video texture and forwards
+/// Displays an external application's decoded video surface and forwards
 /// normalized pointer events to the remote application.
 ///
 /// The widget owns its [VideoDecoder] but does not own or close the media
@@ -13,7 +20,7 @@ import 'video_decoder.dart';
 /// the app to be hidden without disconnecting its process or media session.
 class RemoteVideoSurface extends StatefulWidget {
   final MediaStreamConnection connection;
-  final VideoDecoderFactory decoderFactory;
+  final VideoDecoderFactory? decoderFactory;
   final ValueChanged<ApplicationPointerEvent> onPointerEvent;
   final Widget? loading;
   final Widget Function(BuildContext context, Object error)? errorBuilder;
@@ -21,7 +28,7 @@ class RemoteVideoSurface extends StatefulWidget {
   const RemoteVideoSurface({
     super.key,
     required this.connection,
-    required this.decoderFactory,
+    this.decoderFactory,
     required this.onPointerEvent,
     this.loading,
     this.errorBuilder,
@@ -55,7 +62,9 @@ class _RemoteVideoSurfaceState extends State<RemoteVideoSurface> {
     try {
       subscription = widget.connection.createFrameSubscription();
       _frameSubscription = subscription;
-      decoder = await widget.decoderFactory(widget.connection.configuration);
+      final VideoDecoderFactory decoderFactory =
+          widget.decoderFactory ?? FfmpegVideoDecoder.create;
+      decoder = await decoderFactory(widget.connection.configuration);
       if (!_isCurrent(generation)) {
         await decoder.dispose();
         subscription.cancel();
@@ -182,7 +191,12 @@ class _RemoteVideoSurfaceState extends State<RemoteVideoSurface> {
 
     final VideoStreamConfiguration configuration =
         widget.connection.configuration;
-    final double aspectRatio = configuration.width / configuration.height;
+    final bool quarterTurn =
+        configuration.rotationDegrees == 90 ||
+        configuration.rotationDegrees == 270;
+    final double aspectRatio = quarterTurn
+        ? configuration.height / configuration.width
+        : configuration.width / configuration.height;
 
     return Center(
       child: AspectRatio(
@@ -212,10 +226,7 @@ class _RemoteVideoSurfaceState extends State<RemoteVideoSurface> {
                 ApplicationPointerPhase.cancel,
                 surfaceSize,
               ),
-              child: Texture(
-                textureId: _decoder!.textureId,
-                filterQuality: FilterQuality.low,
-              ),
+              child: _decoder!.buildView(),
             );
           },
         ),
