@@ -57,17 +57,10 @@ class MediaStreamClient {
     }
     if (maxBufferedWriteBytes < 1024 ||
         maxBufferedWriteBytes > 64 * 1024 * 1024) {
-      throw ArgumentError.value(
-        maxBufferedWriteBytes,
-        'maxBufferedWriteBytes',
-      );
+      throw ArgumentError.value(maxBufferedWriteBytes, 'maxBufferedWriteBytes');
     }
 
-    final Socket socket = await Socket.connect(
-      host,
-      port,
-      timeout: timeout,
-    );
+    final Socket socket = await Socket.connect(host, port, timeout: timeout);
     final MediaSocketChannel channel = MediaSocketChannel(
       socket,
       maxRecordBytes: maxAccessUnitBytes + videoFrameHeaderBytes,
@@ -76,20 +69,20 @@ class MediaStreamClient {
 
     try {
       final Uint8List hello = encodeHello(token);
-      await channel.writeRecord(
-        <Uint8List>[hello],
-        payloadLength: hello.length,
+      await channel.writeRecord(<Uint8List>[
+        hello,
+      ], payloadLength: hello.length);
+      final Uint8List? configurationRecord = await channel.readRecord().timeout(
+        timeout,
       );
-      final Uint8List? configurationRecord = await channel
-          .readRecord()
-          .timeout(timeout);
       if (configurationRecord == null) {
         throw const MediaTransportException(
           'Media server closed before sending configuration.',
         );
       }
-      final VideoStreamConfiguration configuration =
-          decodeConfiguration(configurationRecord);
+      final VideoStreamConfiguration configuration = decodeConfiguration(
+        configurationRecord,
+      );
       return MediaStreamClient._(
         channel: channel,
         maxAccessUnitBytes: maxAccessUnitBytes,
@@ -148,10 +141,10 @@ class MediaStreamClient {
     }
 
     final Uint8List frameHeader = encodeVideoFrameHeader(frame);
-    await _channel.writeRecord(
-      <Uint8List>[frameHeader, frame.data],
-      payloadLength: frameHeader.length + frame.data.length,
-    );
+    await _channel.writeRecord(<Uint8List>[
+      frameHeader,
+      frame.data,
+    ], payloadLength: frameHeader.length + frame.data.length);
     _lastSequence = frame.sequenceNumber;
     _lastPresentationTime = frame.presentationTimeMicros;
     if (frame.isKeyFrame) {

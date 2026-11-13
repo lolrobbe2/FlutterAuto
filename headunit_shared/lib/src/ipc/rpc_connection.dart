@@ -38,10 +38,8 @@ class RpcConnection {
   int _activeHandlers = 0;
   bool _closed = false;
 
-  RpcConnection._(
-    this._socket, {
-    required int maxFrameBytes,
-  }) : _maxFrameBytes = maxFrameBytes {
+  RpcConnection._(this._socket, {required int maxFrameBytes})
+    : _maxFrameBytes = maxFrameBytes {
     _socket.setOption(SocketOption.tcpNoDelay, true);
     _socketSubscription = _socket.listen(
       _onData,
@@ -78,11 +76,7 @@ class RpcConnection {
       throw ArgumentError.value(maxFrameBytes, 'maxFrameBytes');
     }
 
-    final Socket socket = await Socket.connect(
-      host,
-      port,
-      timeout: timeout,
-    );
+    final Socket socket = await Socket.connect(host, port, timeout: timeout);
     return RpcConnection._(socket, maxFrameBytes: maxFrameBytes);
   }
 
@@ -231,9 +225,7 @@ class RpcConnection {
         _inputOffset = 0;
       }
     } catch (error) {
-      _terminate(
-        RpcException(-32700, 'Invalid RPC frame: $error'),
-      );
+      _terminate(RpcException(-32700, 'Invalid RPC frame: $error'));
     }
   }
 
@@ -242,7 +234,9 @@ class RpcConnection {
     final Map<String, Object?> message = _toStringMap(decoded);
 
     if (message['v'] != protocolVersion) {
-      throw FormatException('Unsupported RPC protocol version: ${message['v']}');
+      throw FormatException(
+        'Unsupported RPC protocol version: ${message['v']}',
+      );
     }
 
     switch (message['t']) {
@@ -347,9 +341,7 @@ class RpcConnection {
       final Map<String, Object?> error = _toStringMap(rawError);
       final int code = _readInt(error, 'c');
       final String text = _readString(error, 'm');
-      completer.completeError(
-        RpcException(code, text, data: error['d']),
-      );
+      completer.completeError(RpcException(code, text, data: error['d']));
       return;
     }
 
@@ -367,11 +359,7 @@ class RpcConnection {
     }
 
     final Uint8List frame = Uint8List(encoded.length + 4);
-    ByteData.sublistView(frame, 0, 4).setUint32(
-      0,
-      encoded.length,
-      Endian.big,
-    );
+    ByteData.sublistView(frame, 0, 4).setUint32(0, encoded.length, Endian.big);
     frame.setRange(4, frame.length, encoded);
     _socket.add(frame);
   }
@@ -428,10 +416,7 @@ class RpcConnection {
     return value;
   }
 
-  static Map<String, Object?> _readMap(
-    Map<String, Object?> map,
-    String key,
-  ) {
+  static Map<String, Object?> _readMap(Map<String, Object?> map, String key) {
     return _toStringMap(map[key]);
   }
 

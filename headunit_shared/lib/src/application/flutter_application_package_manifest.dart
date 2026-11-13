@@ -27,13 +27,10 @@ class FlutterApplicationPackageManifest {
     final Set<String> targetKeys = <String>{};
 
     for (final FlutterApplicationTarget target in this.targets) {
-      final String key =
-          '${target.platform.wireName}:${target.architecture}';
+      final String key = '${target.platform.wireName}:${target.architecture}';
 
       if (!targetKeys.add(key)) {
-        throw ArgumentError(
-          'Duplicate Flutter application target: $key.',
-        );
+        throw ArgumentError('Duplicate Flutter application target: $key.');
       }
     }
   }
@@ -43,8 +40,7 @@ class FlutterApplicationPackageManifest {
     required String architecture,
   }) {
     for (final FlutterApplicationTarget target in targets) {
-      if (target.platform == platform &&
-          target.architecture == architecture) {
+      if (target.platform == platform && target.architecture == architecture) {
         return target;
       }
     }
@@ -57,9 +53,7 @@ class FlutterApplicationPackageManifest {
       'formatVersion': currentFormatVersion,
       'application': application.toJson(),
       'targets': targets
-          .map(
-            (FlutterApplicationTarget target) => target.toJson(),
-          )
+          .map((FlutterApplicationTarget target) => target.toJson())
           .toList(),
     };
   }
@@ -70,9 +64,7 @@ class FlutterApplicationPackageManifest {
     final Object? formatVersion = json['formatVersion'];
 
     if (formatVersion != currentFormatVersion) {
-      throw FormatException(
-        'Unsupported HAPP format version: $formatVersion',
-      );
+      throw FormatException('Unsupported HAPP format version: $formatVersion');
     }
 
     final Map<String, Object?> applicationJson = _readObject(
@@ -86,11 +78,10 @@ class FlutterApplicationPackageManifest {
       throw FormatException('targets must be a list.');
     }
 
-    final List<FlutterApplicationTarget> targets =
-        rawTargets.map((Object? value) {
-      return FlutterApplicationTarget.fromJson(
-        _readObject(value, 'target'),
-      );
+    final List<FlutterApplicationTarget> targets = rawTargets.map((
+      Object? value,
+    ) {
+      return FlutterApplicationTarget.fromJson(_readObject(value, 'target'));
     }).toList();
 
     return FlutterApplicationPackageManifest(
@@ -99,10 +90,7 @@ class FlutterApplicationPackageManifest {
     );
   }
 
-  static Map<String, Object?> _readObject(
-    Object? value,
-    String field,
-  ) {
+  static Map<String, Object?> _readObject(Object? value, String field) {
     if (value is! Map) {
       throw FormatException('$field must be an object.');
     }

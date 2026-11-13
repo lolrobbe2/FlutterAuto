@@ -15,10 +15,8 @@ class LocalRpcServer {
   late final StreamSubscription<Socket> _serverSubscription;
   bool _closed = false;
 
-  LocalRpcServer._(
-    this._serverSocket, {
-    required int maxConnections,
-  }) : _maxConnections = maxConnections {
+  LocalRpcServer._(this._serverSocket, {required int maxConnections})
+    : _maxConnections = maxConnections {
     _serverSubscription = _serverSocket.listen(_accept);
   }
 
@@ -38,10 +36,7 @@ class LocalRpcServer {
       port,
       shared: false,
     );
-    return LocalRpcServer._(
-      serverSocket,
-      maxConnections: maxConnections,
-    );
+    return LocalRpcServer._(serverSocket, maxConnections: maxConnections);
   }
 
   String get host => InternetAddress.loopbackIPv4.address;
@@ -77,9 +72,11 @@ class LocalRpcServer {
     await _serverSocket.close();
 
     final List<RpcConnection> connections = _activeConnections.toList();
-    await Future.wait<void>(connections.map((RpcConnection item) {
-      return item.close();
-    }));
+    await Future.wait<void>(
+      connections.map((RpcConnection item) {
+        return item.close();
+      }),
+    );
     _activeConnections.clear();
     await _connections.close();
   }

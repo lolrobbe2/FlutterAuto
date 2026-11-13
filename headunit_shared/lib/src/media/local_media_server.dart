@@ -111,24 +111,23 @@ class LocalMediaServer {
       if (!constantTimeTokenEquals(suppliedToken, _token)) {
         throw const MediaTransportException('Media authentication failed.');
       }
-      await channel.writeRecord(
-        <Uint8List>[encodeConfiguration(configuration)],
-        payloadLength: 14,
-      );
+      await channel.writeRecord(<Uint8List>[
+        encodeConfiguration(configuration),
+      ], payloadLength: 14);
       if (_closed || _activeConnections.length >= _maxConnections) {
         await channel.close();
         return;
       }
       final MediaStreamConnection connection =
           MediaStreamConnection.fromAuthenticatedChannel(
-        channel: channel,
-        configuration: configuration,
-        maxAccessUnitBytes: _maxAccessUnitBytes,
-        maxQueuedFrames: _maxQueuedFrames,
-        onClosed: (MediaStreamConnection item) {
-          _activeConnections.remove(item);
-        },
-      );
+            channel: channel,
+            configuration: configuration,
+            maxAccessUnitBytes: _maxAccessUnitBytes,
+            maxQueuedFrames: _maxQueuedFrames,
+            onClosed: (MediaStreamConnection item) {
+              _activeConnections.remove(item);
+            },
+          );
       _activeConnections.add(connection);
       _connections.add(connection);
       connection.start();
@@ -151,11 +150,14 @@ class LocalMediaServer {
       socket.destroy();
     }
     _pendingSockets.clear();
-    final List<MediaStreamConnection> connections =
-        _activeConnections.toList(growable: false);
-    await Future.wait<void>(connections.map((MediaStreamConnection item) {
-      return item.close();
-    }));
+    final List<MediaStreamConnection> connections = _activeConnections.toList(
+      growable: false,
+    );
+    await Future.wait<void>(
+      connections.map((MediaStreamConnection item) {
+        return item.close();
+      }),
+    );
     _activeConnections.clear();
     await _connections.close();
   }

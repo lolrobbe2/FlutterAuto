@@ -72,12 +72,7 @@ class MediaSocketChannel {
       final int count = available < length - written
           ? available
           : length - written;
-      result.setRange(
-        written,
-        written + count,
-        chunk,
-        _currentOffset,
-      );
+      result.setRange(written, written + count, chunk, _currentOffset);
       written += count;
       _currentOffset += count;
     }

@@ -13,16 +13,12 @@ enum FlutterApplicationPlatform {
       }
     }
 
-    throw FormatException(
-      'Unsupported Flutter application platform: $value',
-    );
+    throw FormatException('Unsupported Flutter application platform: $value');
   }
 }
 
 class FlutterApplicationTarget {
-  static final RegExp _architecturePattern = RegExp(
-    r'^[a-z0-9][a-z0-9_-]*$',
-  );
+  static final RegExp _architecturePattern = RegExp(r'^[a-z0-9][a-z0-9_-]*$');
 
   final FlutterApplicationPlatform platform;
 
@@ -83,9 +79,7 @@ class FlutterApplicationTarget {
     };
   }
 
-  factory FlutterApplicationTarget.fromJson(
-    Map<String, Object?> json,
-  ) {
+  factory FlutterApplicationTarget.fromJson(Map<String, Object?> json) {
     String requiredString(String key) {
       final Object? value = json[key];
 

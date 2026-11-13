@@ -42,15 +42,5 @@ export 'src/application/flutter_application_package_manifest.dart';
 export 'headunit_shared.dart';
 
 // IPC
-export 'src/ipc/local_rpc_server.dart';
-export 'src/ipc/rpc_connection.dart';
-export 'src/ipc/rpc_exception.dart';
-export 'src/ipc/rpc_notification.dart';
 
 // Media transport
-export 'src/media/encoded_video_frame.dart';
-export 'src/media/local_media_server.dart';
-export 'src/media/media_stream_client.dart';
-export 'src/media/media_stream_configuration.dart';
-export 'src/media/media_stream_connection.dart';
-export 'src/media/media_transport_exception.dart';

@@ -1,10 +1,5 @@
 /// Type of pointer transition delivered from the headunit surface to an app.
-enum ApplicationPointerPhase {
-  down,
-  move,
-  up,
-  cancel,
-}
+enum ApplicationPointerPhase { down, move, up, cancel }
 
 /// A pointer event in normalized application-surface coordinates.
 ///
@@ -54,8 +49,10 @@ class ApplicationPointerEvent {
     final Object? rawY = json['y'];
     final Object? rawPressure = json['pressure'];
 
-    if (rawPointerId is! int || rawPhase is! String ||
-        rawX is! num || rawY is! num ||
+    if (rawPointerId is! int ||
+        rawPhase is! String ||
+        rawX is! num ||
+        rawY is! num ||
         (rawPressure != null && rawPressure is! num)) {
       throw const FormatException('Invalid application pointer event.');
     }
@@ -65,9 +62,7 @@ class ApplicationPointerEvent {
       'move' => ApplicationPointerPhase.move,
       'up' => ApplicationPointerPhase.up,
       'cancel' => ApplicationPointerPhase.cancel,
-      _ => throw const FormatException(
-        'Unknown application pointer phase.',
-      ),
+      _ => throw const FormatException('Unknown application pointer phase.'),
     };
 
     return ApplicationPointerEvent(

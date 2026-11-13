@@ -116,12 +116,11 @@ class MediaStreamConnection {
     }
     _keyFrameRequestSent = true;
     unawaited(
-      _channel.writeRecord(
-        <Uint8List>[requestKeyFrameRecord],
-        payloadLength: 1,
-      ).catchError((Object _) {
-        // Connection teardown races are handled by _readFrames.
-      }),
+      _channel
+          .writeRecord(<Uint8List>[requestKeyFrameRecord], payloadLength: 1)
+          .catchError((Object _) {
+            // Connection teardown races are handled by _readFrames.
+          }),
     );
   }
 

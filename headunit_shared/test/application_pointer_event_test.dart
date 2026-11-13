@@ -12,8 +12,9 @@ void main() {
         pressure: 0.6,
       );
 
-      final ApplicationPointerEvent decoded =
-          ApplicationPointerEvent.fromJson(event.toJson());
+      final ApplicationPointerEvent decoded = ApplicationPointerEvent.fromJson(
+        event.toJson(),
+      );
 
       expect(decoded.pointerId, event.pointerId);
       expect(decoded.phase, event.phase);

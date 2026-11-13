@@ -14,8 +14,6 @@ enum ApplicationBackgroundPolicy {
       }
     }
 
-    throw FormatException(
-      'Unsupported application background policy: $value',
-    );
+    throw FormatException('Unsupported application background policy: $value');
   }
 }
