@@ -37,7 +37,9 @@ void main() {
       expect(arguments[arguments.indexOf('-i') + 1], inputUri.toString());
       expect(arguments, containsAll(<String>['-an', '-sn', '-dn']));
       expect(arguments, contains('-framedrop'));
-      expect(arguments, contains('-hwaccel'));
+      // Do not force -hwaccel: the Windows FFplay texture path selects its
+      // supported renderer itself, and forcing hardware decoding can break it.
+      expect(arguments, isNot(contains('-hwaccel')));
     });
 
     test(
