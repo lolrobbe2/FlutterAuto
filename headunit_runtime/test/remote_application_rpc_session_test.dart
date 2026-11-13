@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
-import 'package:headunit_ipc/headunit_ipc.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 import 'package:headunit_runtime/src/application/remote_application_rpc_session.dart';
 import 'package:headunit_runtime/src/services/remote_service_adapter.dart';
 import 'package:headunit_runtime/src/services/service_registry.dart';

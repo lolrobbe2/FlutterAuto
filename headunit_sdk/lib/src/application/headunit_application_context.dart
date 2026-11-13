@@ -1,4 +1,4 @@
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 import '../connection/headunit_connection.dart';
 

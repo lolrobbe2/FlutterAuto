@@ -10,15 +10,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   flutter_soloud: ^5.2.3
-  headunit_contracts:
-    path: ../headunit_contracts
+
+  headunit_shared:
+    path: ../headunit_shared
+
   headunit_sdk:
     path: ../headunit_sdk
-  headunit_ipc:
-    path: ../headunit_ipc
-  headunit_media:
-    path: ../headunit_media
+
   logging: ^1.3.0
   archive: ^4.6.0
 

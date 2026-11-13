@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 import 'package:headunit_sdk/headunit_sdk.dart';
 
 class FlutterApplicationInstance implements ApplicationInstance {

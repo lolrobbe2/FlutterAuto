@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:headunit_contracts/headunit_contracts.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 class FlutterFrameworkErrorHandler {
   final ApplicationErrorReporter _errorReporter;

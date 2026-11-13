@@ -2,9 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:headunit_contracts/headunit_contracts.dart';
-import 'package:headunit_ipc/headunit_ipc.dart';
-import 'package:headunit_media/headunit_media.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 import '../services/remote_service_adapter.dart';
 import '../services/service_registry.dart';

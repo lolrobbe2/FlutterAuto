@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:headunit_contracts/headunit_contracts.dart';
-import 'package:headunit_ipc/headunit_ipc.dart';
-import 'package:headunit_media/headunit_media.dart';
+import 'package:headunit_shared/headunit_shared_io.dart';
 
 /// Authenticated connection from an external application to its headunit.
 ///
