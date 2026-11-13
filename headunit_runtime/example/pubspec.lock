@@ -159,6 +159,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  headunit_ipc:
+    dependency: transitive
+    description:
+      path: "../../headunit_ipc"
+      relative: true
+    source: path
+    version: "0.1.0"
   headunit_runtime:
     dependency: "direct main"
     description:

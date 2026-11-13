@@ -5,7 +5,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:headunit_contracts/headunit_contracts.dart';
 import 'package:headunit_runtime/headunit_runtime.dart';
-
+//HAPP = Headunit Application
 FlutterApplicationPackageManifest createManifest() {
   return FlutterApplicationPackageManifest(
     application: ApplicationManifest(

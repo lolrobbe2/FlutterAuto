@@ -1,7 +1,10 @@
 import 'package:headunit_contracts/headunit_contracts.dart';
 
+import 'remote_service_adapter.dart';
+
 class ServiceRegistry {
   final Map<ServiceId, _RegisteredService> _services = {};
+  final Map<ServiceId, RemoteServiceAdapter> _remoteServices = {};
 
   bool _disposed = false;
 
@@ -13,26 +16,36 @@ class ServiceRegistry {
     _ensureActive();
 
     if (_services.containsKey(key.id)) {
-      throw StateError(
-        'Service ${key.id} is already registered.',
-      );
+      throw StateError('Service ${key.id} is already registered.');
     }
-
     _services[key.id] = _RegisteredService(
       instance: instance,
       requiredCapabilities: requiredCapabilities,
     );
   }
 
-  bool unregister(ServiceId id) {
+  /// Registers the serializable API exposed to applications in another
+  /// process. A service may have both an in-process implementation and a
+  /// remote adapter under the same [ServiceId].
+  void registerRemoteService(RemoteServiceAdapter adapter) {
     _ensureActive();
-
-    return _services.remove(id) != null;
+    if (_remoteServices.containsKey(adapter.serviceId)) {
+      throw StateError(
+        'Remote service ${adapter.serviceId} is already registered.',
+      );
+    }
+    _remoteServices[adapter.serviceId] = adapter;
   }
 
-  ServiceBroker createBroker(ApplicationLaunchContext context) {
+  bool unregister(ServiceId id) {
     _ensureActive();
+    final bool localRemoved = _services.remove(id) != null;
+    final bool remoteRemoved = _remoteServices.remove(id) != null;
+    return localRemoved || remoteRemoved;
+  }
 
+  RemoteServiceBroker createBroker(ApplicationLaunchContext context) {
+    _ensureActive();
     return _RuntimeServiceBroker(
       registry: this,
       context: context,
@@ -46,29 +59,18 @@ class ServiceRegistry {
     _ensureActive();
 
     final _RegisteredService? registration = _services[key.id];
-
     if (registration == null) {
       throw ServiceNotFoundException(key.id.value);
     }
 
-    final List<CapabilityId> missingCapabilities =
-        registration.requiredCapabilities
-            .where(
-              (CapabilityId capability) =>
-                  !context.hasCapability(capability),
-            )
-            .toList();
-
-    if (missingCapabilities.isNotEmpty) {
-      throw ServiceAccessDeniedException(
-        applicationId: context.applicationId,
-        serviceId: key.id,
-        missingCapabilities: missingCapabilities,
-      );
-    }
+    _checkCapabilities(
+      applicationId: context.applicationId,
+      serviceId: key.id,
+      requiredCapabilities: registration.requiredCapabilities,
+      context: context,
+    );
 
     final Object instance = registration.instance;
-
     if (instance is! T) {
       throw ServiceTypeMismatchException(
         serviceId: key.id,
@@ -80,12 +82,71 @@ class ServiceRegistry {
     return instance;
   }
 
+  List<String> _getRemoteMethods({
+    required ApplicationLaunchContext context,
+    required ServiceId serviceId,
+  }) {
+    _ensureActive();
+    final RemoteServiceAdapter? adapter = _remoteServices[serviceId];
+    if (adapter == null) {
+      throw ServiceNotFoundException(serviceId.value);
+    }
+
+    _checkCapabilities(
+      applicationId: context.applicationId,
+      serviceId: serviceId,
+      requiredCapabilities: adapter.requiredCapabilities,
+      context: context,
+    );
+    return adapter.methods;
+  }
+
+  Future<Object?> _invokeRemote({
+    required ApplicationLaunchContext context,
+    required ServiceId serviceId,
+    required String method,
+    required Map<String, Object?> arguments,
+  }) async {
+    _ensureActive();
+    final RemoteServiceAdapter? adapter = _remoteServices[serviceId];
+    if (adapter == null) {
+      throw ServiceNotFoundException(serviceId.value);
+    }
+
+    _checkCapabilities(
+      applicationId: context.applicationId,
+      serviceId: serviceId,
+      requiredCapabilities: adapter.requiredCapabilities,
+      context: context,
+    );
+    return adapter.invoke(method, arguments);
+  }
+
+  void _checkCapabilities({
+    required ApplicationId applicationId,
+    required ServiceId serviceId,
+    required Iterable<CapabilityId> requiredCapabilities,
+    required ApplicationLaunchContext context,
+  }) {
+    final List<CapabilityId> missingCapabilities = requiredCapabilities
+        .where((CapabilityId capability) => !context.hasCapability(capability))
+        .toList(growable: false);
+
+    if (missingCapabilities.isNotEmpty) {
+      throw ServiceAccessDeniedException(
+        applicationId: applicationId,
+        serviceId: serviceId,
+        missingCapabilities: missingCapabilities,
+      );
+    }
+  }
+
   void dispose() {
     if (_disposed) {
       return;
     }
-
     _services.clear();
+    _remoteServices.clear();
     _disposed = true;
   }
 
@@ -103,21 +164,27 @@ class _RegisteredService {
   _RegisteredService({
     required this.instance,
     required Iterable<CapabilityId> requiredCapabilities,
-  }) : requiredCapabilities =
-           Set<CapabilityId>.unmodifiable(requiredCapabilities);
+  }) : requiredCapabilities = Set<CapabilityId>.unmodifiable(
+         requiredCapabilities,
+       );
 }
 
-class _RuntimeServiceBroker implements ServiceBroker {
+class _RuntimeServiceBroker implements RemoteServiceBroker {
   final ServiceRegistry _registry;
   final ApplicationLaunchContext _context;
 
   _RuntimeServiceBroker({
-    required this._registry,
-    required this._context,
-  });
+    required ServiceRegistry registry,
+    required ApplicationLaunchContext context,
+  }) : _registry = registry,
+       _context = context;
 
   @override
   ApplicationId get applicationId => _context.applicationId;
+
+  @override
+  List<CapabilityId> get grantedCapabilities =>
+      _context.grantedCapabilities;
 
   @override
   T getService<T extends Object>(ServiceKey<T> key) {
@@ -130,5 +197,27 @@ class _RuntimeServiceBroker implements ServiceBroker {
   @override
   bool hasCapability(CapabilityId capability) {
     return _context.hasCapability(capability);
+  }
+
+  @override
+  List<String> getRemoteMethods(ServiceId serviceId) {
+    return _registry._getRemoteMethods(
+      context: _context,
+      serviceId: serviceId,
+    );
+  }
+
+  @override
+  Future<Object?> invokeRemote({
+    required ServiceId serviceId,
+    required String method,
+    Map<String, Object?> arguments = const <String, Object?>{},
+  }) {
+    return _registry._invokeRemote(
+      context: _context,
+      serviceId: serviceId,
+      method: method,
+      arguments: arguments,
+    );
   }
 }

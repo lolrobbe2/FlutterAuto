@@ -6,8 +6,11 @@ export 'src/application/application_manager.dart';
 export 'src/application/application_registration.dart';
 export 'src/application/flutter_application_runtime.dart';
 export 'src/application/flutter_application_instance.dart';
+export 'src/application/remote_application_rpc_session.dart';
 
+export 'src/services/remote_service_adapter.dart';
 export 'src/shell/headunit_shell.dart';
 
+// Preserve the existing public .happ package APIs.
 export 'src/application/flutter_application_package_reader.dart';
 export 'src/application/flutter_application_package_installer.dart';
