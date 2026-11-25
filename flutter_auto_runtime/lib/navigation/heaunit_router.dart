@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
-class HeaunitRouter extends RouterDelegate<void>
-    with ChangeNotifier, PopNavigatorRouterDelegateMixin<void> {
+class HeaunitRouter extends RouterDelegate<Object>
+    with ChangeNotifier, PopNavigatorRouterDelegateMixin<Object> {
   @override
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -11,22 +11,11 @@ class HeaunitRouter extends RouterDelegate<void>
   }
 
   @override
-  Future<void> setNewRoutePath(void configuration) async {
-    
-  }
+  Future<void> setNewRoutePath(Object configuration) async {}
 
   @override
-  Future<void> setInitialRoutePath(void configuration) async {
-
-  }
+  Future<void> setInitialRoutePath(Object configuration) async {}
 
   @override
-  Future<void> setRestoredRoutePath(void configuration) async {
-
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
+  Future<void> setRestoredRoutePath(Object configuration) async {}
 }

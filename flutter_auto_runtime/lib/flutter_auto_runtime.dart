@@ -9,6 +9,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_auto_runtime/navigation/heaunit_router.dart';
 
+export 'package:flutter_auto_runtime/navigation/heaunit_router.dart';
+export 'package:flutter_auto_runtime/widgets/headunit_app.dart';
 class FlutterAutoRuntime {
   late final HeaunitRouter router;
   FlutterAutoRuntime() {
