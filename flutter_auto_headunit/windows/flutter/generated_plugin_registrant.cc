@@ -6,6 +6,9 @@
 
 #include "generated_plugin_registrant.h"
 
+#include <flutter_auto_shared/flutter_auto_shared_plugin_c_api.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
+  FlutterAutoSharedPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("FlutterAutoSharedPluginCApi"));
 }

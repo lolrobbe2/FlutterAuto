@@ -66,87 +66,101 @@
             "flutterMode": "release"
         },
         {
-            "name": "headunit_contracts",
-            "cwd": "headunit_contracts",
+            "name": "flutter_auto_headunit",
+            "cwd": "flutter_auto_headunit",
             "request": "launch",
             "type": "dart"
         },
         {
-            "name": "headunit_runtime",
-            "cwd": "headunit_runtime",
-            "request": "launch",
-            "type": "dart"
-        },
-        {
-            "name": "headunit_runtime (profile mode)",
-            "cwd": "headunit_runtime",
+            "name": "flutter_auto_headunit (profile mode)",
+            "cwd": "flutter_auto_headunit",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile"
         },
         {
-            "name": "headunit_runtime (release mode)",
-            "cwd": "headunit_runtime",
+            "name": "flutter_auto_headunit (release mode)",
+            "cwd": "flutter_auto_headunit",
             "request": "launch",
             "type": "dart",
             "flutterMode": "release"
         },
         {
-            "name": "headunit_sdk",
-            "cwd": "headunit_sdk",
+            "name": "flutter_auto_runtime",
+            "cwd": "flutter_auto_runtime",
             "request": "launch",
             "type": "dart"
         },
         {
-            "name": "headunit_sdk (profile mode)",
-            "cwd": "headunit_sdk",
+            "name": "flutter_auto_runtime (profile mode)",
+            "cwd": "flutter_auto_runtime",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile"
         },
         {
-            "name": "headunit_sdk (release mode)",
-            "cwd": "headunit_sdk",
+            "name": "flutter_auto_runtime (release mode)",
+            "cwd": "flutter_auto_runtime",
             "request": "launch",
             "type": "dart",
             "flutterMode": "release"
         },
         {
-            "name": "headunit_web_runtime",
-            "cwd": "headunit_web_runtime",
+            "name": "flutter_auto_shared",
+            "cwd": "flutter_auto_shared",
             "request": "launch",
             "type": "dart"
         },
         {
-            "name": "headunit_web_runtime (profile mode)",
-            "cwd": "headunit_web_runtime",
+            "name": "flutter_auto_shared (profile mode)",
+            "cwd": "flutter_auto_shared",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile"
         },
         {
-            "name": "headunit_web_runtime (release mode)",
-            "cwd": "headunit_web_runtime",
+            "name": "flutter_auto_shared (release mode)",
+            "cwd": "flutter_auto_shared",
             "request": "launch",
             "type": "dart",
             "flutterMode": "release"
         },
         {
             "name": "example",
-            "cwd": "headunit_runtime\\example",
+            "cwd": "flutter_auto_runtime\\example",
             "request": "launch",
             "type": "dart"
         },
         {
             "name": "example (profile mode)",
-            "cwd": "headunit_runtime\\example",
+            "cwd": "flutter_auto_runtime\\example",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile"
         },
         {
             "name": "example (release mode)",
-            "cwd": "headunit_runtime\\example",
+            "cwd": "flutter_auto_runtime\\example",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        },
+        {
+            "name": "example",
+            "cwd": "flutter_auto_shared\\example",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "example (profile mode)",
+            "cwd": "flutter_auto_shared\\example",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "example (release mode)",
+            "cwd": "flutter_auto_shared\\example",
             "request": "launch",
             "type": "dart",
             "flutterMode": "release"
