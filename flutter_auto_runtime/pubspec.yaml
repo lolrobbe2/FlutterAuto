@@ -40,8 +40,8 @@ flutter:
     # then add platforms following the instruction here:
     # https://flutter.dev/to/pubspec-plugin-platforms
     # -------------------
-      some_platform:
-        pluginClass: somePluginClass
+      windows:
+        dartPluginClass: FlutterAutoRuntimeWindows
     # -------------------
 
   # To add assets to your plugin package, add an assets section, like this:
