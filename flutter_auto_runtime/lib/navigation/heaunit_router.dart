@@ -1,7 +1,6 @@
 import 'package:flutter_auto_runtime/navigation/layout/headunit_layout.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_auto_runtime/navigation/status/status_bar.dart';
 
 class HeaunitRouter extends RouterDelegate<Object>
     with ChangeNotifier, PopNavigatorRouterDelegateMixin<Object> {

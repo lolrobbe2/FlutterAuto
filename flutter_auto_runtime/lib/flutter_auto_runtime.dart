@@ -5,7 +5,6 @@
 // platforms in the `pubspec.yaml` at
 // https://flutter.dev/to/pubspec-plugin-platforms.
 
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_auto_runtime/navigation/heaunit_router.dart';
 import 'package:flutter_auto_runtime/navigation/layout/column_layout.dart';
@@ -14,10 +13,14 @@ import 'package:flutter_auto_runtime/navigation/status/status_bar.dart';
 export 'package:flutter_auto_runtime/navigation/heaunit_router.dart';
 export 'package:flutter_auto_runtime/widgets/headunit_app.dart';
 export 'package:flutter_auto_runtime/runtime/windows.dart';
+
 class FlutterAutoRuntime {
   late final HeaunitRouter router;
   FlutterAutoRuntime() {
-    router = HeaunitRouter(layout: ColumnLayout(statusBar: HeadunitStatusBar()));
+    router = HeaunitRouter(
+      layout: ColumnLayout(statusBar: HeadunitStatusBar(statusIcons: [
+  ],)),
+    );
   }
 
   Widget get navigator => Router<void>(routerDelegate: router);
@@ -28,18 +31,12 @@ class FlutterAutoRuntime {
 }
 
 class FlutterAutoApp extends StatelessWidget {
-  const FlutterAutoApp({
-    super.key,
-    required this.runtime,
-  });
+  const FlutterAutoApp({super.key, required this.runtime});
 
   final FlutterAutoRuntime runtime;
 
   @override
   Widget build(BuildContext context) {
-    return WidgetsApp(
-      color: const Color(0xFFFFFFFF),
-      home: runtime.navigator,
-    );
+    return WidgetsApp(color: const Color(0xFFFFFFFF), home: runtime.navigator);
   }
 }
