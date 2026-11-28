@@ -6,28 +6,25 @@
 // https://flutter.dev/to/pubspec-plugin-platforms.
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter_auto_runtime/navigation/heaunit_router.dart';
-import 'package:flutter_auto_runtime/navigation/layout/column_layout.dart';
-import 'package:flutter_auto_runtime/navigation/status/status_bar.dart';
 
-export 'package:flutter_auto_runtime/navigation/heaunit_router.dart';
+import 'package:flutter_auto_runtime/navigation/navigation.dart';
+
+export 'package:flutter_auto_runtime/navigation/navigation.dart';
 export 'package:flutter_auto_runtime/widgets/headunit_app.dart';
 export 'package:flutter_auto_runtime/runtime/windows.dart';
-
 class FlutterAutoRuntime {
-  late final HeaunitRouter router;
-  FlutterAutoRuntime() {
-    router = HeaunitRouter(
-      layout: ColumnLayout(statusBar: HeadunitStatusBar(statusIcons: [
-  ],)),
-    );
+  late final HeadunitRouter _router;
+  final HeadunitLayout layout;
+  FlutterAutoRuntime({required this.layout}) {
+    _router = HeadunitRouter(layout: layout);
   }
 
-  Widget get navigator => Router<void>(routerDelegate: router);
-
+  Widget get navigator => Router<void>(routerDelegate: _router);
+  RouterDelegate<Object>? get router => _router;
   void dispose() {
-    router.dispose();
+    _router.dispose();
   }
+
 }
 
 class FlutterAutoApp extends StatelessWidget {

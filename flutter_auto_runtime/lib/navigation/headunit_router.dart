@@ -2,7 +2,7 @@ import 'package:flutter_auto_runtime/navigation/layout/headunit_layout.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/widgets.dart';
 
-class HeaunitRouter extends RouterDelegate<Object>
+class HeadunitRouter extends RouterDelegate<Object>
     with ChangeNotifier, PopNavigatorRouterDelegateMixin<Object> {
   @override
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

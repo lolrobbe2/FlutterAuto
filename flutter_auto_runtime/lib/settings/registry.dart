@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_auto_runtime/settings/base.dart';
 import 'package:flutter_auto_runtime/settings/group.dart';
-import 'package:flutter_auto_runtime/settings/implementation.dart/memory.dart';
+import 'package:flutter_auto_runtime/settings/implementation/memory.dart';
 import 'package:flutter_auto_runtime/settings/storage.dart';
 
 class SettingsRegistry extends ChangeNotifier {
